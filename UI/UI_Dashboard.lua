@@ -1,0 +1,3 @@
+local addonName, MRT = ...
+
+-- Placeholder, wird später implementiert

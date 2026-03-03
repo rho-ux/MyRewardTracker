@@ -1,0 +1,27 @@
+## Interface: 120001
+## Title: MyRewardTracker
+## Notes: Modular Reward Tracking System
+## Author: You
+## Version: 1.0
+## SavedVariables: MyRewardTrackerDB
+
+## Category-deDE: 0-MeineAddons
+
+Core.lua
+Constants.lua
+Config.lua
+
+Modules\Scanner_Missions.lua
+Modules\Scanner_Controller.lua
+Modules\Storage.lua
+Modules\FilterConfig.lua
+Modules\FilterEngine.lua
+Modules\Notifier.lua
+
+
+UI\UI_MainFrame.lua
+UI\UI_Dashboard.lua
+UI\UI_Debug.lua
+
+
+Triggers.lua
