@@ -4,7 +4,7 @@
 ## Author: You
 ## Version: 1.0
 ## SavedVariables: MyRewardTrackerDB
-## Category- 3
+## test 4
 ## Category-deDE: 0-MeineAddons
 
 Core.lua

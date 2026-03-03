@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "AutoPush",
+            "type": "shell",
+            "command": "git add . && git commit -m 'Auto-Sync' && git pull --rebase && git push",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
+        }
+    ]
+}
