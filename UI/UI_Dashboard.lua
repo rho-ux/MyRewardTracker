@@ -20,6 +20,23 @@ local FOLLOWER_EXPANSION_MAP = {
     [123] = "sl",
 }
 
+local EXPANSION_LABELS = {
+    wod = "WOD",
+    legion = "LEGION",
+    bfa = "BFA",
+    sl = "SHADOWLANDS",
+    df = "DRAGONFLIGHT",
+    tww = "TWW",
+    unknown = "UNKNOWN",
+}
+
+local REWARD_LABELS = {
+    item = "ITEM",
+    currency = "CURRENCY",
+    gold = "GOLD",
+    other = "OTHER",
+}
+
 local function GetMissionState(mission)
     if not mission then
         return "available"
@@ -142,7 +159,7 @@ local function RefreshDashboard()
     lineAvailable:SetText("|cffffff00Mission verfuegbar:|r " .. (summary.available or 0))
     lineReady:SetText("|cff00ff00Mission fertig:|r " .. (summary.ready or 0))
     lineRunning:SetText("|cff33aaffMission laeuft:|r " .. (summary.running or 0))
-    lineWQ:SetText("WQ verfuegbar: " .. (summary.wq or 0))
+    lineWQ:SetText("|cffffff00WQ verfuegbar:|r " .. (summary.wq or 0))
 
     local entries = {}
     local charData = MyRewardTrackerDB and MyRewardTrackerDB.characters and MyRewardTrackerDB.characters[GetCharacterKey()]
@@ -193,7 +210,20 @@ local function RefreshDashboard()
 
     local lines = {}
     local showSortDebug = IsSortDebugVisible()
+    local lastExpansionKey = nil
+    local lastRewardKey = nil
     for _, entry in ipairs(entries) do
+        if lastExpansionKey ~= entry.expansionKey then
+            local label = EXPANSION_LABELS[entry.expansionKey] or string.upper(entry.expansionKey or "unknown")
+            lines[#lines + 1] = "|cffffcc00== " .. label .. " ==|r"
+            lastRewardKey = nil
+        end
+
+        if lastRewardKey ~= entry.rewardKey then
+            local rewardLabel = REWARD_LABELS[entry.rewardKey] or string.upper(entry.rewardKey or "other")
+            lines[#lines + 1] = "|cffb0b0b0-- " .. rewardLabel .. " --|r"
+        end
+
         local stateLabel = GetColoredStateLabel(entry.state)
         local line =
             "[" .. entry.missionID .. "] "
@@ -206,6 +236,8 @@ local function RefreshDashboard()
         end
 
         lines[#lines + 1] = line
+        lastExpansionKey = entry.expansionKey
+        lastRewardKey = entry.rewardKey
     end
 
     listTitle:SetText("Gefilterte Missionen: " .. shown)
