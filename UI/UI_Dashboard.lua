@@ -39,6 +39,16 @@ local function GetMissionState(mission)
     return "available"
 end
 
+local function GetColoredStateLabel(state)
+    if state == "ready" then
+        return "|cff00ff00fertig|r"
+    end
+    if state == "running" then
+        return "|cff33aafflaeuft|r"
+    end
+    return "|cffffff00verfuegbar|r"
+end
+
 local function GetMissionExpansionKey(mission)
     if not mission then
         return "unknown"
@@ -104,6 +114,13 @@ local function GetCharacterKey()
     return name .. "-" .. realm
 end
 
+local function IsSortDebugVisible()
+    if MRT.Config and MRT.Config.UI and type(MRT.Config.UI.DashboardShowSortDebug) == "boolean" then
+        return MRT.Config.UI.DashboardShowSortDebug
+    end
+    return true
+end
+
 local function RefreshDashboard()
     if not frame then
         return
@@ -122,9 +139,9 @@ local function RefreshDashboard()
     }
 
     lineCharacter:SetText("Character: " .. GetCharacterKey())
-    lineAvailable:SetText("Mission verfuegbar: " .. (summary.available or 0))
-    lineReady:SetText("Mission fertig: " .. (summary.ready or 0))
-    lineRunning:SetText("Mission running: " .. (summary.running or 0))
+    lineAvailable:SetText("|cffffff00Mission verfuegbar:|r " .. (summary.available or 0))
+    lineReady:SetText("|cff00ff00Mission fertig:|r " .. (summary.ready or 0))
+    lineRunning:SetText("|cff33aaffMission laeuft:|r " .. (summary.running or 0))
     lineWQ:SetText("WQ verfuegbar: " .. (summary.wq or 0))
 
     local entries = {}
@@ -175,16 +192,20 @@ local function RefreshDashboard()
     end)
 
     local lines = {}
+    local showSortDebug = IsSortDebugVisible()
     for _, entry in ipairs(entries) do
-        lines[#lines + 1] =
+        local stateLabel = GetColoredStateLabel(entry.state)
+        local line =
             "[" .. entry.missionID .. "] "
             .. entry.missionName
             .. " | "
-            .. entry.state
-            .. " | "
-            .. entry.expansionKey
-            .. " | "
-            .. entry.rewardKey
+            .. stateLabel
+
+        if showSortDebug then
+            line = line .. " | " .. entry.expansionKey .. " | " .. entry.rewardKey
+        end
+
+        lines[#lines + 1] = line
     end
 
     listTitle:SetText("Gefilterte Missionen: " .. shown)

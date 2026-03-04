@@ -12,6 +12,10 @@ MRT.Config.Sorting = MRT.Config.Sorting or {
     RewardOrder = { "item", "currency", "gold", "other" },
 }
 
+MRT.Config.UI = MRT.Config.UI or {
+    DashboardShowSortDebug = true,
+}
+
 local function BuildOrderIndex(orderList)
     local index = {}
     if type(orderList) ~= "table" then
