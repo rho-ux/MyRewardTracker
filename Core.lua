@@ -5,6 +5,44 @@ _G.MRT = MRT
 
 local frame = CreateFrame("Frame")
 
+MRT.HelpCommands = MRT.HelpCommands or {}
+
+function MRT.RegisterHelpCommand(command, description)
+    if not command or command == "" then
+        return
+    end
+
+    local key = string.lower(command)
+    MRT.HelpCommands[key] = {
+        command = command,
+        description = description or ""
+    }
+end
+
+SLASH_MRTHELP1 = "/mrthelp"
+SlashCmdList["MRTHELP"] = function()
+    print("|cff00ff00[MRT]|r Befehle:")
+
+    local list = {}
+    for _, info in pairs(MRT.HelpCommands) do
+        list[#list + 1] = info
+    end
+
+    table.sort(list, function(a, b)
+        return string.lower(a.command) < string.lower(b.command)
+    end)
+
+    for _, info in ipairs(list) do
+        if info.description ~= "" then
+            print("  " .. info.command .. " - " .. info.description)
+        else
+            print("  " .. info.command)
+        end
+    end
+end
+
+MRT.RegisterHelpCommand("/mrthelp", "zeigt diese Hilfe")
+
 -- =========================================================
 -- Utility: Character Key
 -- =========================================================

@@ -59,6 +59,10 @@ local function EnsureNotifierConfig()
     return cfg
 end
 
+local function GetNotifierConfig()
+    return EnsureNotifierConfig()
+end
+
 local function TryPlayNotificationSound(cfg)
     if not cfg or cfg.soundMode == "none" then
         return
@@ -92,25 +96,6 @@ local function GetCharacterKey()
     end
 
     return name .. "-" .. realm
-end
-
-local function GetMissionState(mission)
-    if not mission then
-        return "available"
-    end
-
-    if mission.completed then
-        return "ready"
-    end
-
-    if mission.inProgress then
-        if mission.timeLeftSeconds and mission.timeLeftSeconds == 0 then
-            return "ready"
-        end
-        return "running"
-    end
-
-    return "available"
 end
 
 local function OpenDashboard()
@@ -237,7 +222,10 @@ local function CollectSummaryCounts()
     end
 
     for missionID, mission in pairs(charData.missionTable) do
-        local state = GetMissionState(mission)
+        local state = "available"
+        if MRT.Config and MRT.Config.GetMissionState then
+            state = MRT.Config:GetMissionState(mission)
+        end
         local filtered = FilterEngine:CheckMission(missionID, mission)
 
         if filtered then
@@ -311,4 +299,79 @@ SlashCmdList["MRTNOTIFY"] = function()
     if MRT.Notifier and MRT.Notifier.CheckMissions then
         MRT.Notifier:CheckMissions(true)
     end
+end
+
+SLASH_MRTNOTIFYPOPUP1 = "/mrtnotifypopup"
+SlashCmdList["MRTNOTIFYPOPUP"] = function(msg)
+    local cfg = GetNotifierConfig()
+    local arg = string.lower((msg or ""):match("^%s*(.-)%s*$"))
+
+    if arg == "on" then
+        cfg.popupEnabled = true
+    elseif arg == "off" then
+        cfg.popupEnabled = false
+    else
+        cfg.popupEnabled = not cfg.popupEnabled
+    end
+
+    print("|cff00ff00[MRT]|r Notify-Popup: " .. (cfg.popupEnabled and "AN" or "AUS"))
+end
+
+SLASH_MRTNOTIFYSOUND1 = "/mrtnotifysound"
+SlashCmdList["MRTNOTIFYSOUND"] = function(msg)
+    local cfg = GetNotifierConfig()
+    local command = (msg or ""):match("^%s*(.-)%s*$")
+    local mode, value = command:match("^(%S+)%s*(.-)$")
+    mode = string.lower(mode or "")
+
+    if mode == "none" then
+        cfg.soundMode = "none"
+        print("|cff00ff00[MRT]|r Notify-Sound: AUS")
+        return
+    end
+
+    if mode == "kit" then
+        local id = tonumber(value)
+        if not id then
+            print("|cffff0000[MRT]|r Nutzung: /mrtnotifysound kit <SoundKitID>")
+            return
+        end
+        cfg.soundMode = "kit"
+        cfg.soundKitID = id
+        print("|cff00ff00[MRT]|r Notify-Sound: KIT " .. id)
+        return
+    end
+
+    if mode == "file" then
+        if not value or value == "" then
+            print("|cffff0000[MRT]|r Nutzung: /mrtnotifysound file <Dateipfad>")
+            return
+        end
+        cfg.soundMode = "file"
+        cfg.soundFilePath = value
+        print("|cff00ff00[MRT]|r Notify-Sound: FILE gesetzt")
+        return
+    end
+
+    print("|cffff0000[MRT]|r Nutzung: /mrtnotifysound none | kit <ID> | file <Pfad>")
+end
+
+SLASH_MRTNOTIFYAUTOHIDE1 = "/mrtnotifyautohide"
+SlashCmdList["MRTNOTIFYAUTOHIDE"] = function(msg)
+    local cfg = GetNotifierConfig()
+    local seconds = tonumber((msg or ""):match("^%s*(.-)%s*$"))
+    if not seconds or seconds < 0 then
+        print("|cffff0000[MRT]|r Nutzung: /mrtnotifyautohide <Sekunden>=0+")
+        return
+    end
+
+    cfg.autoHideSeconds = seconds
+    print("|cff00ff00[MRT]|r Notify AutoHide: " .. seconds .. "s")
+end
+
+if MRT.RegisterHelpCommand then
+    MRT.RegisterHelpCommand("/mrtnotify", "zeigt Notifier-Popup sofort")
+    MRT.RegisterHelpCommand("/mrtnotifypopup on|off|toggle", "Popup ein/aus")
+    MRT.RegisterHelpCommand("/mrtnotifysound none|kit <ID>|file <Pfad>", "Sound-Modus setzen")
+    MRT.RegisterHelpCommand("/mrtnotifyautohide <Sekunden>", "AutoHide-Dauer setzen")
 end

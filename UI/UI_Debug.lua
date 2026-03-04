@@ -152,6 +152,10 @@ SlashCmdList["MRTDEBUG"] = function()
     DebugUI:Toggle()
 end
 
+if MRT.RegisterHelpCommand then
+    MRT.RegisterHelpCommand("/mrtdebug", "oeffnet/schliesst Debug-UI")
+end
+
 
 MRT.DebugUI = DebugUI
 
