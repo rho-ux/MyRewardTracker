@@ -16,6 +16,12 @@ frame:SetScript("OnEvent", function(self, event)
         return
     end
 
+    -- Scanner_Controller ist die zentrale Scan-Steuerung.
+    -- Dieser Trigger bleibt nur als Fallback aktiv.
+    if MRT.ScannerController then
+        return
+    end
+
     MRT.Scanner:StartScan()
 
 end)

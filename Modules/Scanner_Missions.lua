@@ -15,6 +15,20 @@ local TABLE_TYPES = {
 local function GetCharacterKey()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName()
+
+    if not realm or realm == "" then
+        local _, fullRealm = UnitFullName("player")
+        realm = fullRealm
+    end
+
+    if not name or name == "" then
+        name = "UnknownPlayer"
+    end
+
+    if not realm or realm == "" then
+        realm = "UnknownRealm"
+    end
+
     return name .. "-" .. realm
 end
 

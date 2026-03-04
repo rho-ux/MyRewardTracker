@@ -7,8 +7,7 @@
 local addonName, MRT = ...
 local FilterEngine = {}
 
--- zentrale FilterConfig laden
-local Config = MRT.FilterConfig
+local FilterConfig = MRT.FilterConfig
 
 -- ---------------------------------
 -- Mission bewerten
@@ -19,12 +18,14 @@ function FilterEngine:CheckMission(missionID, mission)
         return false
     end
 
+    local config = FilterConfig:GetActive()
+
     for _, reward in ipairs(mission.rewards) do
 
         -- ---------------------------------
         -- Item Whitelist
         -- ---------------------------------
-        if reward.itemID and Config.ItemWhitelist[reward.itemID] then
+        if reward.itemID and config.ItemWhitelist[reward.itemID] then
             return true
         end
 
@@ -33,7 +34,7 @@ function FilterEngine:CheckMission(missionID, mission)
         -- ---------------------------------
         if reward.currencyID then
 
-             local min = Config.CurrencyMinimum[reward.currencyID]
+             local min = config.CurrencyMinimum[reward.currencyID]
 
              if min and reward.quantity and reward.quantity >= min then
                  return true
@@ -45,7 +46,9 @@ function FilterEngine:CheckMission(missionID, mission)
         -- Gold Minimum
         -- ---------------------------------
         if reward.currencyID == 0 then
-            if reward.quantity and reward.quantity >= Config.GoldMinimum then
+            local minGold = config.GoldMinimum
+
+            if minGold and minGold > 0 and reward.quantity and reward.quantity >= minGold then
                 return true
             end
         end
@@ -55,7 +58,7 @@ function FilterEngine:CheckMission(missionID, mission)
     -- ---------------------------------
     -- MissionID Whitelist
     -- ---------------------------------
-    if Config.MissionWhitelist[missionID] then
+    if config.MissionWhitelist[missionID] then
         return true
     end
 

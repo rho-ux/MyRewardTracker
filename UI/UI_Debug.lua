@@ -14,6 +14,20 @@ local text
 local function GetCharacterKey()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName()
+
+    if not realm or realm == "" then
+        local _, fullRealm = UnitFullName("player")
+        realm = fullRealm
+    end
+
+    if not name or name == "" then
+        name = "UnknownPlayer"
+    end
+
+    if not realm or realm == "" then
+        realm = "UnknownRealm"
+    end
+
     return name .. "-" .. realm
 end
 
@@ -34,6 +48,16 @@ local function BuildText()
     local count = 0
 
     output = output .. "Character: " .. charKey .. "\n\n"
+
+    if MRT.Notifier and MRT.Notifier.GetSummaryCounts then
+        local summary = MRT.Notifier:GetSummaryCounts()
+        output = output .. "Notifier Summary:\n"
+        output = output .. "  available: " .. (summary.available or 0) .. "\n"
+        output = output .. "  ready: " .. (summary.ready or 0) .. "\n"
+        output = output .. "  running: " .. (summary.running or 0) .. "\n"
+        output = output .. "  wq: " .. (summary.wq or 0) .. "\n"
+        output = output .. "  filteredTotal: " .. (summary.filteredTotal or 0) .. "\n\n"
+    end
 
     for missionID, mission in pairs(charData.missionTable) do
         local filtered = MRT.FilterEngine:CheckMission(missionID, mission)

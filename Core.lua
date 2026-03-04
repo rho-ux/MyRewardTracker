@@ -60,10 +60,5 @@ frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function(self, event)
 if event == "PLAYER_LOGIN" then
     InitializeDB()
-
-    -- 5 Sekunden Delay, damit API sicher bereit ist
-    C_Timer.After(5, function()
-        MRT.Scanner:StartScan()
-    end)
 end
 end)

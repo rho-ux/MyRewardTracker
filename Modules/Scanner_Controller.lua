@@ -11,7 +11,7 @@ local lastScan = 0
 local SCAN_COOLDOWN = 5
 local loginScanDone = false
 
-local function TryScan()
+local function TryScan(force)
 
     if not MRT.Scanner then
         return
@@ -19,7 +19,7 @@ local function TryScan()
 
     local now = time()
 
-    if now - lastScan < SCAN_COOLDOWN then
+    if not force and now - lastScan < SCAN_COOLDOWN then
         return
     end
 
@@ -31,6 +31,7 @@ end
 
 Controller:RegisterEvent("PLAYER_LOGIN")
 Controller:RegisterEvent("GARRISON_MISSION_LIST_UPDATE")
+Controller:RegisterEvent("GARRISON_MISSION_FINISHED")
 
 Controller:SetScript("OnEvent", function(self, event)
 
@@ -46,9 +47,25 @@ Controller:SetScript("OnEvent", function(self, event)
             TryScan()
         end)
 
+        -- Sicherheits-Scan nach Login, falls API-Daten erst spaeter vollstaendig sind.
+        C_Timer.After(8, function()
+            TryScan(true)
+        end)
+
     elseif event == "GARRISON_MISSION_LIST_UPDATE" then
 
         TryScan()
+
+        -- Sicherheits-Scan fuer spaet nachgeladene Missionsdaten.
+        C_Timer.After(2, function()
+            TryScan(true)
+        end)
+
+    elseif event == "GARRISON_MISSION_FINISHED" then
+
+        C_Timer.After(1, function()
+            TryScan()
+        end)
 
     end
 
