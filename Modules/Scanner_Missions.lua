@@ -36,6 +36,17 @@ local function CopyTrackedRewards(mission)
     return rewardsCopy
 end
 
+local function FormatMoneySimple(copper)
+    local value = tonumber(copper) or 0
+    if value < 0 then
+        value = 0
+    end
+    local gold = math.floor(value / 10000)
+    local silver = math.floor((value % 10000) / 100)
+    local bronze = value % 100
+    return string.format("%dg %ds %dc", gold, silver, bronze)
+end
+
 local function DeepCopyTable(value, seen)
     if type(value) ~= "table" then
         return value
@@ -119,6 +130,10 @@ local function BuildTrackedForCharacter(charKey)
             running = 0,
             ready = 0,
             wq = 0,
+            totalGoldCopper = 0,
+            totalAnima = 0,
+            totalItemQuantity = 0,
+            totalCurrencyQuantity = 0,
         },
         missions = {},
     }
@@ -127,8 +142,37 @@ local function BuildTrackedForCharacter(charKey)
         local isFiltered = MRT.FilterEngine and MRT.FilterEngine.CheckMission and MRT.FilterEngine:CheckMission(missionID, mission)
         if isFiltered then
             local state = GetMissionStateSafe(mission)
+            local missionGold = 0
+            local missionAnima = 0
+            local missionItems = 0
+            local missionCurrencies = 0
+
             tracked.summary.filteredTotal = tracked.summary.filteredTotal + 1
             tracked.summary[state] = (tracked.summary[state] or 0) + 1
+
+            if type(mission.rewards) == "table" then
+                for _, reward in ipairs(mission.rewards) do
+                    local qty = tonumber(reward.quantity) or 0
+                    if reward.currencyID == 0 then
+                        missionGold = missionGold + qty
+                    elseif reward.currencyID then
+                        missionCurrencies = missionCurrencies + qty
+                    elseif reward.itemID then
+                        missionItems = missionItems + qty
+                        if MRT.Config and MRT.Config.GetAnimaValue then
+                            local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
+                            if animaValue > 0 then
+                                missionAnima = missionAnima + (animaValue * qty)
+                            end
+                        end
+                    end
+                end
+            end
+
+            tracked.summary.totalGoldCopper = (tracked.summary.totalGoldCopper or 0) + missionGold
+            tracked.summary.totalAnima = (tracked.summary.totalAnima or 0) + missionAnima
+            tracked.summary.totalItemQuantity = (tracked.summary.totalItemQuantity or 0) + missionItems
+            tracked.summary.totalCurrencyQuantity = (tracked.summary.totalCurrencyQuantity or 0) + missionCurrencies
 
             tracked.missions[missionID] = {
                 missionID = missionID,
@@ -138,6 +182,10 @@ local function BuildTrackedForCharacter(charKey)
                 rewardKey = GetRewardKeySafe(mission),
                 endTime = mission.endTime,
                 timeLeftSeconds = mission.timeLeftSeconds,
+                goldCopper = missionGold,
+                anima = missionAnima,
+                itemQuantity = missionItems,
+                currencyQuantity = missionCurrencies,
                 rewards = CopyTrackedRewards(mission),
             }
         end
@@ -270,6 +318,17 @@ SlashCmdList["MRTSYNCTRACKED"] = function()
             tracked.summary.ready or 0
         )
     )
+    if tracked.summary then
+        print(
+            string.format(
+                "|cff00ff00[MRT]|r Tracked-Summen: gold=%s anima=%d items=%d waehrung=%d",
+                FormatMoneySimple(tracked.summary.totalGoldCopper or 0),
+                tracked.summary.totalAnima or 0,
+                tracked.summary.totalItemQuantity or 0,
+                tracked.summary.totalCurrencyQuantity or 0
+            )
+        )
+    end
 end
 
 if MRT.RegisterHelpCommand then

@@ -24,6 +24,7 @@ local optionGroupGold
 local optionGroupCurrency
 local optionGroupItems
 local optionGroupAnima
+local optionAnimaBypassFilter
 local fontSizeLabel
 local summaryTitle
 local summaryContent
@@ -375,7 +376,7 @@ local function GetRewardLabel(rewardKey)
     return string.upper(rewardKey or "other")
 end
 
-local function BuildAggregateRows(missionTotal, availableCount, runningCount, readyCount, totalGold, totalAnima, itemTotals, currencyTotals, cfg)
+local function BuildAggregateRows(missionTotal, availableCount, runningCount, readyCount, totalGold, totalAnima, itemTotals, animaItemTotals, currencyTotals, cfg)
     local rows = {}
     local function add(text, tooltip)
         rows[#rows + 1] = { text = text, tooltip = tooltip }
@@ -395,6 +396,30 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
 
     if cfg.showGroupAnima then
         add("|cffffcc00Gesamt Anima (Missionen):|r " .. (totalAnima or 0))
+        local animaItems = {}
+        for _, entry in pairs(animaItemTotals) do
+            animaItems[#animaItems + 1] = entry
+        end
+        table.sort(animaItems, function(a, b)
+            if a.quantity ~= b.quantity then return a.quantity > b.quantity end
+            return a.label < b.label
+        end)
+        if #animaItems == 0 then
+            add("  - keine")
+        else
+            add("|cffffcc00Anima-Items gesamt:|r")
+            for _, entry in ipairs(animaItems) do
+                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
+                add(
+                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity .. " (" .. (entry.anima or 0) .. " anima)",
+                    {
+                        itemID = entry.itemID,
+                        itemLink = entry.itemLink,
+                        lines = { entry.label .. " x" .. entry.quantity, "Anima: " .. (entry.anima or 0) }
+                    }
+                )
+            end
+        end
         add("")
     end
 
@@ -463,51 +488,6 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
     return rows
 end
 
-local function AppendTrackedCharacterRows(rows)
-    rows[#rows + 1] = { text = "" }
-    rows[#rows + 1] = { text = "|cffffcc00Multi-Char (tracked):|r" }
-
-    local trackedRoot = MyRewardTrackerDB and MyRewardTrackerDB.account and MyRewardTrackerDB.account.tracked
-    if type(trackedRoot) ~= "table" then
-        rows[#rows + 1] = { text = "  - keine Daten" }
-        return
-    end
-
-    local keys = {}
-    for charKey in pairs(trackedRoot) do
-        keys[#keys + 1] = charKey
-    end
-
-    table.sort(keys, function(a, b)
-        local aSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(a) or 9999
-        local bSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(b) or 9999
-        if aSort ~= bSort then
-            return aSort < bSort
-        end
-        return a < b
-    end)
-
-    if #keys == 0 then
-        rows[#rows + 1] = { text = "  - keine Daten" }
-        return
-    end
-
-    for _, charKey in ipairs(keys) do
-        local tracked = trackedRoot[charKey]
-        local s = tracked and tracked.summary or {}
-        rows[#rows + 1] = {
-            text = string.format(
-                "  - %s | total:%d avail:%d run:%d ready:%d",
-                charKey,
-                s.filteredTotal or 0,
-                s.available or 0,
-                s.running or 0,
-                s.ready or 0
-            )
-        }
-    end
-end
-
 local function ShowRowTooltip(row)
     local data = row and row.data
     if not data or not data.tooltip then
@@ -541,22 +521,34 @@ local function HideRowTooltip()
     GameTooltip:Hide()
 end
 
-local function MissionHasAnimaReward(mission)
+local function GetMissionItemGroupFlags(mission)
+    local hasAnimaItem = false
+    local hasRegularItem = false
     if not mission or type(mission.rewards) ~= "table" then
-        return false
+        return hasAnimaItem, hasRegularItem
     end
 
     if not MRT.Config or not MRT.Config.IsAnimaItem then
-        return false
+        for _, reward in ipairs(mission.rewards) do
+            if reward.itemID then
+                hasRegularItem = true
+                break
+            end
+        end
+        return hasAnimaItem, hasRegularItem
     end
 
     for _, reward in ipairs(mission.rewards) do
-        if reward.itemID and MRT.Config:IsAnimaItem(reward.itemID) then
-            return true
+        if reward.itemID then
+            if MRT.Config:IsAnimaItem(reward.itemID) then
+                hasAnimaItem = true
+            else
+                hasRegularItem = true
+            end
         end
     end
 
-    return false
+    return hasAnimaItem, hasRegularItem
 end
 
 local function MissionAllowedByGroupToggles(mission, rewardKey, cfg)
@@ -567,11 +559,8 @@ local function MissionAllowedByGroupToggles(mission, rewardKey, cfg)
         return cfg.showGroupCurrency
     end
     if rewardKey == "item" then
-        local isAnima = MissionHasAnimaReward(mission)
-        if isAnima then
-            return cfg.showGroupAnima
-        end
-        return cfg.showGroupItems
+        local hasAnimaItem, hasRegularItem = GetMissionItemGroupFlags(mission)
+        return (hasAnimaItem and cfg.showGroupAnima) or (hasRegularItem and cfg.showGroupItems)
     end
     return true
 end
@@ -701,6 +690,7 @@ local function RefreshDashboard()
     summary = summary or { available = 0, ready = 0, running = 0, wq = 0 }
 
     local dashboardCfg = GetDashboardConfig()
+    local filterCfg = MRT.FilterConfig and MRT.FilterConfig.GetActive and MRT.FilterConfig:GetActive() or {}
     local showSortDebug = dashboardCfg.showSortDebug
     local showExpansionHeaders = dashboardCfg.showExpansionHeaders
     local showRewardHeaders = dashboardCfg.showRewardHeaders
@@ -725,6 +715,7 @@ local function RefreshDashboard()
     if optionGroupCurrency then optionGroupCurrency:SetChecked(showGroupCurrency) end
     if optionGroupItems then optionGroupItems:SetChecked(showGroupItems) end
     if optionGroupAnima then optionGroupAnima:SetChecked(showGroupAnima) end
+    if optionAnimaBypassFilter then optionAnimaBypassFilter:SetChecked(filterCfg.AnimaBypassFilter and true or false) end
     ApplyDashboardFontSize(fontSize)
 
     lineCharacter:SetText("Character: " .. GetCharacterKey())
@@ -746,6 +737,7 @@ local function RefreshDashboard()
     local totalGold = 0
     local totalAnima = 0
     local itemTotals = {}
+    local animaItemTotals = {}
     local currencyTotals = {}
 
     if charData and charData.missionTable and MRT.FilterEngine then
@@ -767,22 +759,28 @@ local function RefreshDashboard()
                             local qty = reward.quantity or 0
                             if reward.currencyID == 0 then
                                 totalGold = totalGold + qty
-                            elseif reward.itemID then
-                                local itemLink, itemName, itemIcon = ResolveItemData(reward)
-                                local key = reward.itemID
-                                local label = itemLink or itemName or ("Item:" .. reward.itemID)
-                                local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
+                        elseif reward.itemID then
+                            local itemLink, itemName, itemIcon = ResolveItemData(reward)
+                            local key = reward.itemID
+                            local label = itemLink or itemName or ("Item:" .. reward.itemID)
+                            local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
                                 row.quantity = row.quantity + qty
                                 if not row.icon and itemIcon then row.icon = itemIcon end
                                 if not row.itemLink and itemLink then row.itemLink = itemLink end
                                 itemTotals[key] = row
                                 if MRT.Config and MRT.Config.GetAnimaValue then
-                                    local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
-                                    if animaValue > 0 then
-                                        totalAnima = totalAnima + (animaValue * qty)
-                                    end
+                                local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
+                                if animaValue > 0 then
+                                    totalAnima = totalAnima + (animaValue * qty)
+                                    local animaRow = animaItemTotals[key] or { label = label, quantity = 0, anima = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
+                                    animaRow.quantity = animaRow.quantity + qty
+                                    animaRow.anima = animaRow.anima + (animaValue * qty)
+                                    if not animaRow.icon and itemIcon then animaRow.icon = itemIcon end
+                                    if not animaRow.itemLink and itemLink then animaRow.itemLink = itemLink end
+                                    animaItemTotals[key] = animaRow
                                 end
-                            elseif reward.currencyID then
+                            end
+                        elseif reward.currencyID then
                                 local currencyName, currencyIcon = ResolveCurrencyData(reward)
                                 local key = reward.currencyID
                                 local label = currencyName or ("Currency:" .. reward.currencyID)
@@ -864,8 +862,7 @@ local function RefreshDashboard()
 
     listTitle:SetText("Gefilterte Missionen: " .. shown)
     RenderMissionRows(rows)
-    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, totalAnima, itemTotals, currencyTotals, dashboardCfg)
-    AppendTrackedCharacterRows(summaryRowsData)
+    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, totalAnima, itemTotals, animaItemTotals, currencyTotals, dashboardCfg)
     RenderSummaryRows(summaryRowsData)
     ApplyDashboardFontSize(fontSize)
 end
@@ -1018,6 +1015,20 @@ local function CreateDashboard()
 
     optionGroupAnima = CreateOptionToggle(frame, "BOTTOMLEFT", 760, 16, "Anima", cfg.showGroupAnima, function(checked)
         cfg.showGroupAnima = checked
+        RefreshDashboard()
+    end)
+
+    optionAnimaBypassFilter = CreateOptionToggle(frame, "BOTTOMLEFT", 760, 40, "Anima Filter-Bypass", false, function(checked)
+        local fcfg = MRT.FilterConfig and MRT.FilterConfig.GetActive and MRT.FilterConfig:GetActive()
+        if fcfg then
+            fcfg.AnimaBypassFilter = checked and true or false
+        end
+        if MRT.Scanner and MRT.Scanner.SyncTrackedFromCharacter then
+            MRT.Scanner:SyncTrackedFromCharacter()
+        end
+        if MRT.Notifier and MRT.Notifier.CheckMissions then
+            MRT.Notifier:CheckMissions(false)
+        end
         RefreshDashboard()
     end)
 

@@ -51,7 +51,11 @@ MRT.Config.Labels.Reward = MRT.Config.Labels.Reward or {
 }
 
 MRT.Config.Anima = MRT.Config.Anima or {
-    ItemValues = {},
+    -- Anima-Itemwerte (itemID -> anima pro Stueck)
+    ItemValues = {
+        [181548] = 35,
+        [184775] = 35,
+    },
 }
 
 local function BuildOrderIndex(orderList)
@@ -235,6 +239,18 @@ function MRT.Config:GetDashboardConfig()
     end
     if type(cfg.showGroupAnima) ~= "boolean" then
         cfg.showGroupAnima = true
+    end
+    if type(cfg.multiShowGold) ~= "boolean" then
+        cfg.multiShowGold = true
+    end
+    if type(cfg.multiShowCurrency) ~= "boolean" then
+        cfg.multiShowCurrency = true
+    end
+    if type(cfg.multiShowItems) ~= "boolean" then
+        cfg.multiShowItems = true
+    end
+    if type(cfg.multiShowAnima) ~= "boolean" then
+        cfg.multiShowAnima = true
     end
     if type(cfg.fontSize) ~= "number" then
         cfg.fontSize = 13

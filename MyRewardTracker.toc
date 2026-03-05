@@ -22,6 +22,7 @@ Modules\Notifier.lua
 
 UI\UI_MainFrame.lua
 UI\UI_Dashboard.lua
+UI\UI_MultiDebug.lua
 UI\UI_Debug.lua
 
 

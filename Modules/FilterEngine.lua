@@ -30,6 +30,15 @@ function FilterEngine:CheckMission(missionID, mission)
         end
 
         -- ---------------------------------
+        -- Optional: Anima-Items duerfen Filter uebersteuern
+        -- ---------------------------------
+        if reward.itemID and config.AnimaBypassFilter and MRT.Config and MRT.Config.IsAnimaItem then
+            if MRT.Config:IsAnimaItem(reward.itemID) then
+                return true
+            end
+        end
+
+        -- ---------------------------------
         -- Currency Minimum
         -- ---------------------------------
         if reward.currencyID then
