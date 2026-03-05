@@ -50,6 +50,10 @@ MRT.Config.Labels.Reward = MRT.Config.Labels.Reward or {
     other = "SONSTIGES",
 }
 
+MRT.Config.Anima = MRT.Config.Anima or {
+    ItemValues = {},
+}
+
 local function BuildOrderIndex(orderList)
     local index = {}
     if type(orderList) ~= "table" then
@@ -162,6 +166,32 @@ function MRT.Config:GetMissionState(mission)
     return "available"
 end
 
+function MRT.Config:IsAnimaItem(itemID)
+    if not itemID then
+        return false
+    end
+    local values = self.Anima and self.Anima.ItemValues
+    if type(values) ~= "table" then
+        return false
+    end
+    return values[itemID] ~= nil
+end
+
+function MRT.Config:GetAnimaValue(itemID)
+    if not itemID then
+        return 0
+    end
+    local values = self.Anima and self.Anima.ItemValues
+    if type(values) ~= "table" then
+        return 0
+    end
+    local value = tonumber(values[itemID])
+    if not value or value < 0 then
+        return 0
+    end
+    return value
+end
+
 function MRT.Config:GetDashboardConfig()
     local fallback = true
     if self.UI and type(self.UI.DashboardShowSortDebug) == "boolean" then
@@ -193,6 +223,18 @@ function MRT.Config:GetDashboardConfig()
     end
     if type(cfg.debugForceRemaining) ~= "boolean" then
         cfg.debugForceRemaining = false
+    end
+    if type(cfg.showGroupGold) ~= "boolean" then
+        cfg.showGroupGold = true
+    end
+    if type(cfg.showGroupCurrency) ~= "boolean" then
+        cfg.showGroupCurrency = true
+    end
+    if type(cfg.showGroupItems) ~= "boolean" then
+        cfg.showGroupItems = true
+    end
+    if type(cfg.showGroupAnima) ~= "boolean" then
+        cfg.showGroupAnima = true
     end
     if type(cfg.fontSize) ~= "number" then
         cfg.fontSize = 13

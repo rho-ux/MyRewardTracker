@@ -20,6 +20,10 @@ local optionStatusColors
 local optionRewardDetails
 local optionCompactList
 local optionDebugForceRemaining
+local optionGroupGold
+local optionGroupCurrency
+local optionGroupItems
+local optionGroupAnima
 local fontSizeLabel
 local summaryTitle
 local summaryContent
@@ -371,7 +375,7 @@ local function GetRewardLabel(rewardKey)
     return string.upper(rewardKey or "other")
 end
 
-local function BuildAggregateRows(missionTotal, availableCount, runningCount, readyCount, totalGold, itemTotals, currencyTotals)
+local function BuildAggregateRows(missionTotal, availableCount, runningCount, readyCount, totalGold, totalAnima, itemTotals, currencyTotals, cfg)
     local rows = {}
     local function add(text, tooltip)
         rows[#rows + 1] = { text = text, tooltip = tooltip }
@@ -383,10 +387,20 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
     add("  - laeuft: " .. (runningCount or 0))
     add("  - fertig: " .. (readyCount or 0))
     add("")
-    add("|cffffcc00Gesamt Gold Mission&WQ:|r " .. FormatMoney(totalGold))
-    add("|cffb0b0b0(WQ aktuell Platzhalter bis WQ-Modul aktiv ist)|r")
-    add("")
-    add("|cffffcc00Items gesamt:|r")
+    if cfg.showGroupGold then
+        add("|cffffcc00Gesamt Gold Mission&WQ:|r " .. FormatMoney(totalGold))
+        add("|cffb0b0b0(WQ aktuell Platzhalter bis WQ-Modul aktiv ist)|r")
+        add("")
+    end
+
+    if cfg.showGroupAnima then
+        add("|cffffcc00Gesamt Anima (Missionen):|r " .. (totalAnima or 0))
+        add("")
+    end
+
+    if cfg.showGroupItems then
+        add("|cffffcc00Items gesamt:|r")
+    end
 
     local items = {}
     for _, entry in pairs(itemTotals) do
@@ -397,24 +411,28 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
         return a.label < b.label
     end)
 
-    if #items == 0 then
-        add("  - keine")
-    else
-        for _, entry in ipairs(items) do
-            local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
-            add(
-                "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
-                {
-                    itemID = entry.itemID,
-                    itemLink = entry.itemLink,
-                    lines = { entry.label .. " x" .. entry.quantity }
-                }
-            )
+    if cfg.showGroupItems then
+        if #items == 0 then
+            add("  - keine")
+        else
+            for _, entry in ipairs(items) do
+                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
+                add(
+                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
+                    {
+                        itemID = entry.itemID,
+                        itemLink = entry.itemLink,
+                        lines = { entry.label .. " x" .. entry.quantity }
+                    }
+                )
+            end
         end
+        add("")
     end
 
-    add("")
-    add("|cffffcc00Waehrung gesamt:|r")
+    if cfg.showGroupCurrency then
+        add("|cffffcc00Waehrung gesamt:|r")
+    end
     local currencies = {}
     for _, entry in pairs(currencyTotals) do
         currencies[#currencies + 1] = entry
@@ -424,19 +442,21 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
         return a.label < b.label
     end)
 
-    if #currencies == 0 then
-        add("  - keine")
-    else
-        for _, entry in ipairs(currencies) do
-            local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
-            add(
-                "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
-                {
-                    currencyID = entry.currencyID,
-                    quantity = entry.quantity,
-                    lines = { entry.label .. " x" .. entry.quantity }
-                }
-            )
+    if cfg.showGroupCurrency then
+        if #currencies == 0 then
+            add("  - keine")
+        else
+            for _, entry in ipairs(currencies) do
+                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
+                add(
+                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
+                    {
+                        currencyID = entry.currencyID,
+                        quantity = entry.quantity,
+                        lines = { entry.label .. " x" .. entry.quantity }
+                    }
+                )
+            end
         end
     end
 
@@ -519,6 +539,41 @@ end
 
 local function HideRowTooltip()
     GameTooltip:Hide()
+end
+
+local function MissionHasAnimaReward(mission)
+    if not mission or type(mission.rewards) ~= "table" then
+        return false
+    end
+
+    if not MRT.Config or not MRT.Config.IsAnimaItem then
+        return false
+    end
+
+    for _, reward in ipairs(mission.rewards) do
+        if reward.itemID and MRT.Config:IsAnimaItem(reward.itemID) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function MissionAllowedByGroupToggles(mission, rewardKey, cfg)
+    if rewardKey == "gold" then
+        return cfg.showGroupGold
+    end
+    if rewardKey == "currency" then
+        return cfg.showGroupCurrency
+    end
+    if rewardKey == "item" then
+        local isAnima = MissionHasAnimaReward(mission)
+        if isAnima then
+            return cfg.showGroupAnima
+        end
+        return cfg.showGroupItems
+    end
+    return true
 end
 
 local function EnsureListRow(index)
@@ -653,6 +708,10 @@ local function RefreshDashboard()
     local showRewardDetails = dashboardCfg.showRewardDetails
     local compactList = dashboardCfg.compactList
     local debugForceRemaining = dashboardCfg.debugForceRemaining
+    local showGroupGold = dashboardCfg.showGroupGold
+    local showGroupCurrency = dashboardCfg.showGroupCurrency
+    local showGroupItems = dashboardCfg.showGroupItems
+    local showGroupAnima = dashboardCfg.showGroupAnima
     local fontSize = dashboardCfg.fontSize or 13
 
     if optionSortDebug then optionSortDebug:SetChecked(showSortDebug) end
@@ -662,6 +721,10 @@ local function RefreshDashboard()
     if optionRewardDetails then optionRewardDetails:SetChecked(showRewardDetails) end
     if optionCompactList then optionCompactList:SetChecked(compactList) end
     if optionDebugForceRemaining then optionDebugForceRemaining:SetChecked(debugForceRemaining) end
+    if optionGroupGold then optionGroupGold:SetChecked(showGroupGold) end
+    if optionGroupCurrency then optionGroupCurrency:SetChecked(showGroupCurrency) end
+    if optionGroupItems then optionGroupItems:SetChecked(showGroupItems) end
+    if optionGroupAnima then optionGroupAnima:SetChecked(showGroupAnima) end
     ApplyDashboardFontSize(fontSize)
 
     lineCharacter:SetText("Character: " .. GetCharacterKey())
@@ -681,61 +744,73 @@ local function RefreshDashboard()
     local charData = MyRewardTrackerCharDB
     local shown = 0
     local totalGold = 0
+    local totalAnima = 0
     local itemTotals = {}
     local currencyTotals = {}
 
     if charData and charData.missionTable and MRT.FilterEngine then
         for missionID, mission in pairs(charData.missionTable) do
             if MRT.FilterEngine:CheckMission(missionID, mission) then
-                shown = shown + 1
                 local state = MRT.Config and MRT.Config.GetMissionState and MRT.Config:GetMissionState(mission) or "available"
                 local expansionKey = GetMissionExpansionKey(mission)
                 local rewardKey = MRT.Config and MRT.Config.GetMissionRewardKey and MRT.Config:GetMissionRewardKey(mission) or "other"
-                local expansionSort = MRT.Config and MRT.Config.GetExpansionSortIndex and MRT.Config:GetExpansionSortIndex(expansionKey) or 9999
-                local rewardSort = MRT.Config and MRT.Config.GetRewardSortIndex and MRT.Config:GetRewardSortIndex(rewardKey) or 9999
+                local visibleByGroup = MissionAllowedByGroupToggles(mission, rewardKey, dashboardCfg)
+                if not visibleByGroup then
+                    -- Gruppe ausgeblendet (Gold/Waehrung/Items/Anima).
+                else
+                    shown = shown + 1
+                    local expansionSort = MRT.Config and MRT.Config.GetExpansionSortIndex and MRT.Config:GetExpansionSortIndex(expansionKey) or 9999
+                    local rewardSort = MRT.Config and MRT.Config.GetRewardSortIndex and MRT.Config:GetRewardSortIndex(rewardKey) or 9999
 
-                if mission.rewards then
-                    for _, reward in ipairs(mission.rewards) do
-                        local qty = reward.quantity or 0
-                        if reward.currencyID == 0 then
-                            totalGold = totalGold + qty
-                        elseif reward.itemID then
-                            local itemLink, itemName, itemIcon = ResolveItemData(reward)
-                            local key = reward.itemID
-                            local label = itemLink or itemName or ("Item:" .. reward.itemID)
-                            local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
-                            row.quantity = row.quantity + qty
-                            if not row.icon and itemIcon then row.icon = itemIcon end
-                            if not row.itemLink and itemLink then row.itemLink = itemLink end
-                            itemTotals[key] = row
-                        elseif reward.currencyID then
-                            local currencyName, currencyIcon = ResolveCurrencyData(reward)
-                            local key = reward.currencyID
-                            local label = currencyName or ("Currency:" .. reward.currencyID)
-                            local row = currencyTotals[key] or { label = label, quantity = 0, icon = currencyIcon, currencyID = reward.currencyID }
-                            row.quantity = row.quantity + qty
-                            if not row.icon and currencyIcon then row.icon = currencyIcon end
-                            currencyTotals[key] = row
+                    if mission.rewards then
+                        for _, reward in ipairs(mission.rewards) do
+                            local qty = reward.quantity or 0
+                            if reward.currencyID == 0 then
+                                totalGold = totalGold + qty
+                            elseif reward.itemID then
+                                local itemLink, itemName, itemIcon = ResolveItemData(reward)
+                                local key = reward.itemID
+                                local label = itemLink or itemName or ("Item:" .. reward.itemID)
+                                local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
+                                row.quantity = row.quantity + qty
+                                if not row.icon and itemIcon then row.icon = itemIcon end
+                                if not row.itemLink and itemLink then row.itemLink = itemLink end
+                                itemTotals[key] = row
+                                if MRT.Config and MRT.Config.GetAnimaValue then
+                                    local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
+                                    if animaValue > 0 then
+                                        totalAnima = totalAnima + (animaValue * qty)
+                                    end
+                                end
+                            elseif reward.currencyID then
+                                local currencyName, currencyIcon = ResolveCurrencyData(reward)
+                                local key = reward.currencyID
+                                local label = currencyName or ("Currency:" .. reward.currencyID)
+                                local row = currencyTotals[key] or { label = label, quantity = 0, icon = currencyIcon, currencyID = reward.currencyID }
+                                row.quantity = row.quantity + qty
+                                if not row.icon and currencyIcon then row.icon = currencyIcon end
+                                currencyTotals[key] = row
+                            end
                         end
                     end
-                end
 
-                entries[#entries + 1] = {
-                    missionID = missionID,
-                    missionName = mission.name or "Unknown",
-                    state = state,
-                    remainingText = GetMissionRemainingText(mission, state),
-                    expansionKey = expansionKey,
-                    rewardKey = rewardKey,
-                    expansionSort = expansionSort,
-                    rewardSort = rewardSort,
-                    rewardPreview = BuildRewardPreview(mission, compactList),
-                    rewardPriorityNote = BuildRewardPriorityNote(mission, rewardKey),
-                    tooltip = BuildRewardTooltipData(mission),
-                }
+                    entries[#entries + 1] = {
+                        missionID = missionID,
+                        missionName = mission.name or "Unknown",
+                        state = state,
+                        remainingText = GetMissionRemainingText(mission, state),
+                        expansionKey = expansionKey,
+                        rewardKey = rewardKey,
+                        expansionSort = expansionSort,
+                        rewardSort = rewardSort,
+                        rewardPreview = BuildRewardPreview(mission, compactList),
+                        rewardPriorityNote = BuildRewardPriorityNote(mission, rewardKey),
+                        tooltip = BuildRewardTooltipData(mission),
+                    }
 
-                if debugForceRemaining and not entries[#entries].remainingText then
-                    entries[#entries].remainingText = GetDebugRemainingText(mission, state)
+                    if debugForceRemaining and not entries[#entries].remainingText then
+                        entries[#entries].remainingText = GetDebugRemainingText(mission, state)
+                    end
                 end
             end
         end
@@ -789,7 +864,7 @@ local function RefreshDashboard()
 
     listTitle:SetText("Gefilterte Missionen: " .. shown)
     RenderMissionRows(rows)
-    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, itemTotals, currencyTotals)
+    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, totalAnima, itemTotals, currencyTotals, dashboardCfg)
     AppendTrackedCharacterRows(summaryRowsData)
     RenderSummaryRows(summaryRowsData)
     ApplyDashboardFontSize(fontSize)
@@ -923,6 +998,26 @@ local function CreateDashboard()
 
     optionDebugForceRemaining = CreateOptionToggle(frame, "BOTTOMLEFT", 460, 40, "Restzeit-Test", cfg.debugForceRemaining, function(checked)
         cfg.debugForceRemaining = checked
+        RefreshDashboard()
+    end)
+
+    optionGroupGold = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 16, "Gold", cfg.showGroupGold, function(checked)
+        cfg.showGroupGold = checked
+        RefreshDashboard()
+    end)
+
+    optionGroupCurrency = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 40, "Waehrung", cfg.showGroupCurrency, function(checked)
+        cfg.showGroupCurrency = checked
+        RefreshDashboard()
+    end)
+
+    optionGroupItems = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 64, "Items", cfg.showGroupItems, function(checked)
+        cfg.showGroupItems = checked
+        RefreshDashboard()
+    end)
+
+    optionGroupAnima = CreateOptionToggle(frame, "BOTTOMLEFT", 760, 16, "Anima", cfg.showGroupAnima, function(checked)
+        cfg.showGroupAnima = checked
         RefreshDashboard()
     end)
 
