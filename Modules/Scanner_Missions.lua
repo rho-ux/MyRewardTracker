@@ -12,6 +12,112 @@ local TABLE_TYPES = {
     { garrisonType = 111, followerType = 123 },
 }
 
+local function EnsureAccountTracked()
+    MyRewardTrackerDB = MyRewardTrackerDB or {}
+    MyRewardTrackerDB.account = MyRewardTrackerDB.account or {}
+    MyRewardTrackerDB.account.tracked = MyRewardTrackerDB.account.tracked or {}
+    return MyRewardTrackerDB.account.tracked
+end
+
+local function CopyMissionRewards(mission)
+    local rewardsCopy = {}
+    if not mission or type(mission.rewards) ~= "table" then
+        return rewardsCopy
+    end
+
+    for _, reward in ipairs(mission.rewards) do
+        rewardsCopy[#rewardsCopy + 1] = {
+            itemID = reward.itemID,
+            currencyID = reward.currencyID,
+            quantity = reward.quantity,
+            title = reward.title,
+            icon = reward.icon,
+        }
+    end
+
+    return rewardsCopy
+end
+
+local function GetMissionStateSafe(mission)
+    if MRT.Config and MRT.Config.GetMissionState then
+        return MRT.Config:GetMissionState(mission)
+    end
+
+    if mission and mission.completed then
+        return "ready"
+    end
+    if mission and mission.inProgress then
+        return "running"
+    end
+    return "available"
+end
+
+local function GetExpansionKeySafe(mission)
+    if MRT.Config and MRT.Config.GetExpansionKeyByFollowerType then
+        return MRT.Config:GetExpansionKeyByFollowerType(mission and mission.followerTypeID)
+    end
+    return "unknown"
+end
+
+local function GetRewardKeySafe(mission)
+    if MRT.Config and MRT.Config.GetMissionRewardKey then
+        return MRT.Config:GetMissionRewardKey(mission)
+    end
+    return "other"
+end
+
+local function BuildTrackedForCharacter(charKey)
+    if not MyRewardTrackerDB or not MyRewardTrackerDB.characters then
+        return
+    end
+
+    local charData = MyRewardTrackerDB.characters[charKey]
+    if not charData or type(charData.missionTable) ~= "table" then
+        return
+    end
+
+    local trackedRoot = EnsureAccountTracked()
+    local tracked = {
+        charKey = charKey,
+        lastScan = time(),
+        summary = {
+            filteredTotal = 0,
+            available = 0,
+            running = 0,
+            ready = 0,
+            wq = 0,
+        },
+        missions = {},
+    }
+
+    for missionID, mission in pairs(charData.missionTable) do
+        local isFiltered = MRT.FilterEngine and MRT.FilterEngine.CheckMission and MRT.FilterEngine:CheckMission(missionID, mission)
+        if isFiltered then
+            local state = GetMissionStateSafe(mission)
+            tracked.summary.filteredTotal = tracked.summary.filteredTotal + 1
+            tracked.summary[state] = (tracked.summary[state] or 0) + 1
+
+            tracked.missions[missionID] = {
+                missionID = missionID,
+                name = mission.name,
+                state = state,
+                expansionKey = GetExpansionKeySafe(mission),
+                rewardKey = GetRewardKeySafe(mission),
+                startTime = mission.startTime,
+                endTime = mission.endTime,
+                durationSeconds = mission.durationSeconds,
+                timeLeftSeconds = mission.timeLeftSeconds,
+                inProgress = mission.inProgress and true or false,
+                completed = mission.completed and true or false,
+                followerTypeID = mission.followerTypeID,
+                rewards = CopyMissionRewards(mission),
+            }
+        end
+    end
+
+    trackedRoot[charKey] = tracked
+end
+
 local function GetCharacterKey()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName()
@@ -89,6 +195,7 @@ end
     end
 
     MyRewardTrackerDB.characters[charKey].lastScan = time()
+    BuildTrackedForCharacter(charKey)
 
     local count = 0
     for _ in pairs(MyRewardTrackerDB.characters[charKey].missionTable) do

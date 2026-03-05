@@ -59,6 +59,49 @@ local function BuildText()
         output = output .. "  filteredTotal: " .. (summary.filteredTotal or 0) .. "\n\n"
     end
 
+    local tracked = MyRewardTrackerDB.account and MyRewardTrackerDB.account.tracked and MyRewardTrackerDB.account.tracked[charKey]
+    if tracked and tracked.summary then
+        output = output .. "Tracked Summary (account.tracked):\n"
+        output = output .. "  filteredTotal: " .. (tracked.summary.filteredTotal or 0) .. "\n"
+        output = output .. "  available: " .. (tracked.summary.available or 0) .. "\n"
+        output = output .. "  running: " .. (tracked.summary.running or 0) .. "\n"
+        output = output .. "  ready: " .. (tracked.summary.ready or 0) .. "\n"
+        output = output .. "  wq: " .. (tracked.summary.wq or 0) .. "\n"
+        output = output .. "\n"
+    else
+        output = output .. "Tracked Summary (account.tracked): nicht vorhanden\n\n"
+    end
+
+    local trackedAll = MyRewardTrackerDB.account and MyRewardTrackerDB.account.tracked
+    output = output .. "Tracked Characters (account.tracked):\n"
+    if trackedAll then
+        local keys = {}
+        for key in pairs(trackedAll) do
+            keys[#keys + 1] = key
+        end
+        table.sort(keys)
+
+        if #keys == 0 then
+            output = output .. "  - keine\n\n"
+        else
+            for _, key in ipairs(keys) do
+                local entry = trackedAll[key]
+                local s = entry and entry.summary or {}
+                output = output .. string.format(
+                    "  - %s | total:%d avail:%d run:%d ready:%d\n",
+                    key,
+                    s.filteredTotal or 0,
+                    s.available or 0,
+                    s.running or 0,
+                    s.ready or 0
+                )
+            end
+            output = output .. "\n"
+        end
+    else
+        output = output .. "  - nicht vorhanden\n\n"
+    end
+
     for missionID, mission in pairs(charData.missionTable) do
         local filtered = MRT.FilterEngine:CheckMission(missionID, mission)
         count = count + 1

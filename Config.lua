@@ -168,6 +168,9 @@ function MRT.Config:GetDashboardConfig()
     if type(cfg.compactList) ~= "boolean" then
         cfg.compactList = false
     end
+    if type(cfg.debugForceRemaining) ~= "boolean" then
+        cfg.debugForceRemaining = false
+    end
     if type(cfg.fontSize) ~= "number" then
         cfg.fontSize = 13
     end

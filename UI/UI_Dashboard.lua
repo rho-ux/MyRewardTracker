@@ -19,6 +19,7 @@ local optionRewardHeaders
 local optionStatusColors
 local optionRewardDetails
 local optionCompactList
+local optionDebugForceRemaining
 local fontSizeLabel
 local summaryTitle
 local summaryContent
@@ -55,6 +56,71 @@ local function FormatMoney(copper)
     local bronze = value % 100
 
     return string.format("%dg %ds %dc", gold, silver, bronze)
+end
+
+local function FormatDuration(seconds)
+    local value = tonumber(seconds) or 0
+    if value < 0 then
+        value = 0
+    end
+
+    local days = math.floor(value / 86400)
+    local hours = math.floor((value % 86400) / 3600)
+    local minutes = math.floor((value % 3600) / 60)
+
+    if days > 0 then
+        return string.format("%dt %dh %dm", days, hours, minutes)
+    end
+    if hours > 0 then
+        return string.format("%dh %dm", hours, minutes)
+    end
+    return string.format("%dm", minutes)
+end
+
+local function GetMissionRemainingText(mission, state)
+    if state ~= "running" or not mission then
+        return nil
+    end
+
+    local seconds = tonumber(mission.timeLeftSeconds)
+    if not seconds and mission.endTime then
+        seconds = tonumber(mission.endTime) - time()
+    end
+
+    if not seconds then
+        return nil
+    end
+
+    if seconds <= 0 then
+        return "bereit"
+    end
+
+    return FormatDuration(seconds)
+end
+
+local function GetDebugRemainingText(mission, state)
+    if state ~= "available" then
+        return nil
+    end
+
+    local seconds = tonumber(mission and mission.durationSeconds)
+    if not seconds or seconds <= 0 then
+        seconds = 5400
+    end
+
+    return FormatDuration(seconds) .. " (test)"
+end
+
+local function FormatRemainingLabel(remainingText)
+    if not remainingText or remainingText == "" then
+        return nil
+    end
+
+    if remainingText == "bereit" then
+        return "|cff00ff00Rest: bereit|r"
+    end
+
+    return "|cffb0b0b0Rest: " .. remainingText .. "|r"
 end
 
 local function ResolveItemData(reward)
@@ -541,6 +607,7 @@ local function RefreshDashboard()
     local showStatusColors = dashboardCfg.showStatusColors
     local showRewardDetails = dashboardCfg.showRewardDetails
     local compactList = dashboardCfg.compactList
+    local debugForceRemaining = dashboardCfg.debugForceRemaining
     local fontSize = dashboardCfg.fontSize or 13
 
     if optionSortDebug then optionSortDebug:SetChecked(showSortDebug) end
@@ -549,6 +616,7 @@ local function RefreshDashboard()
     if optionStatusColors then optionStatusColors:SetChecked(showStatusColors) end
     if optionRewardDetails then optionRewardDetails:SetChecked(showRewardDetails) end
     if optionCompactList then optionCompactList:SetChecked(compactList) end
+    if optionDebugForceRemaining then optionDebugForceRemaining:SetChecked(debugForceRemaining) end
     ApplyDashboardFontSize(fontSize)
 
     lineCharacter:SetText("Character: " .. GetCharacterKey())
@@ -611,6 +679,7 @@ local function RefreshDashboard()
                     missionID = missionID,
                     missionName = mission.name or "Unknown",
                     state = state,
+                    remainingText = GetMissionRemainingText(mission, state),
                     expansionKey = expansionKey,
                     rewardKey = rewardKey,
                     expansionSort = expansionSort,
@@ -619,6 +688,10 @@ local function RefreshDashboard()
                     rewardPriorityNote = BuildRewardPriorityNote(mission, rewardKey),
                     tooltip = BuildRewardTooltipData(mission),
                 }
+
+                if debugForceRemaining and not entries[#entries].remainingText then
+                    entries[#entries].remainingText = GetDebugRemainingText(mission, state)
+                end
             end
         end
     end
@@ -646,6 +719,10 @@ local function RefreshDashboard()
         end
 
         local line = "[" .. entry.missionID .. "] " .. entry.missionName .. " | " .. GetColoredStateLabel(entry.state, showStatusColors)
+        local remainingLabel = FormatRemainingLabel(entry.remainingText)
+        if remainingLabel then
+            line = line .. " | " .. remainingLabel
+        end
         if showRewardDetails and entry.rewardPreview then
             line = line .. " | " .. entry.rewardPreview
         end
@@ -794,6 +871,11 @@ local function CreateDashboard()
 
     optionCompactList = CreateOptionToggle(frame, "BOTTOMLEFT", 300, 64, "Kompakte Liste", cfg.compactList, function(checked)
         cfg.compactList = checked
+        RefreshDashboard()
+    end)
+
+    optionDebugForceRemaining = CreateOptionToggle(frame, "BOTTOMLEFT", 460, 40, "Restzeit-Test", cfg.debugForceRemaining, function(checked)
+        cfg.debugForceRemaining = checked
         RefreshDashboard()
     end)
 
