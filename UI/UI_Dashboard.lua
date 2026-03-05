@@ -443,6 +443,51 @@ local function BuildAggregateRows(missionTotal, availableCount, runningCount, re
     return rows
 end
 
+local function AppendTrackedCharacterRows(rows)
+    rows[#rows + 1] = { text = "" }
+    rows[#rows + 1] = { text = "|cffffcc00Multi-Char (tracked):|r" }
+
+    local trackedRoot = MyRewardTrackerDB and MyRewardTrackerDB.account and MyRewardTrackerDB.account.tracked
+    if type(trackedRoot) ~= "table" then
+        rows[#rows + 1] = { text = "  - keine Daten" }
+        return
+    end
+
+    local keys = {}
+    for charKey in pairs(trackedRoot) do
+        keys[#keys + 1] = charKey
+    end
+
+    table.sort(keys, function(a, b)
+        local aSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(a) or 9999
+        local bSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(b) or 9999
+        if aSort ~= bSort then
+            return aSort < bSort
+        end
+        return a < b
+    end)
+
+    if #keys == 0 then
+        rows[#rows + 1] = { text = "  - keine Daten" }
+        return
+    end
+
+    for _, charKey in ipairs(keys) do
+        local tracked = trackedRoot[charKey]
+        local s = tracked and tracked.summary or {}
+        rows[#rows + 1] = {
+            text = string.format(
+                "  - %s | total:%d avail:%d run:%d ready:%d",
+                charKey,
+                s.filteredTotal or 0,
+                s.available or 0,
+                s.running or 0,
+                s.ready or 0
+            )
+        }
+    end
+end
+
 local function ShowRowTooltip(row)
     local data = row and row.data
     if not data or not data.tooltip then
@@ -633,7 +678,7 @@ local function RefreshDashboard()
     end
 
     local entries = {}
-    local charData = MyRewardTrackerDB and MyRewardTrackerDB.characters and MyRewardTrackerDB.characters[GetCharacterKey()]
+    local charData = MyRewardTrackerCharDB
     local shown = 0
     local totalGold = 0
     local itemTotals = {}
@@ -744,7 +789,9 @@ local function RefreshDashboard()
 
     listTitle:SetText("Gefilterte Missionen: " .. shown)
     RenderMissionRows(rows)
-    RenderSummaryRows(BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, itemTotals, currencyTotals))
+    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, itemTotals, currencyTotals)
+    AppendTrackedCharacterRows(summaryRowsData)
+    RenderSummaryRows(summaryRowsData)
     ApplyDashboardFontSize(fontSize)
 end
 

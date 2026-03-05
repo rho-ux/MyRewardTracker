@@ -4,6 +4,7 @@
 ## Author: You
 ## Version: 1.0
 ## SavedVariables: MyRewardTrackerDB
+## SavedVariablesPerCharacter: MyRewardTrackerCharDB
 ## test 4
 ## Category-deDE: 0-MeineAddons
 

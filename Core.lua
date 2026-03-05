@@ -49,6 +49,16 @@ MRT.RegisterHelpCommand("/mrthelp", "zeigt diese Hilfe")
 local function GetCharacterKey()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName()
+    if not realm or realm == "" then
+        local _, fullRealm = UnitFullName("player")
+        realm = fullRealm
+    end
+    if not name or name == "" then
+        name = "UnknownPlayer"
+    end
+    if not realm or realm == "" then
+        realm = "UnknownRealm"
+    end
     return name .. "-" .. realm
 end
 
@@ -60,11 +70,6 @@ local function InitializeDB()
     -- Haupt-DB erstellen
     if not MyRewardTrackerDB then
         MyRewardTrackerDB = {}
-    end
-
-    -- Characters Tabelle
-    if not MyRewardTrackerDB.characters then
-        MyRewardTrackerDB.characters = {}
     end
 
     -- Account Bereich
@@ -79,12 +84,52 @@ local function InitializeDB()
     -- Charakter anlegen
     local charKey = GetCharacterKey()
 
-    if not MyRewardTrackerDB.characters[charKey] then
-        MyRewardTrackerDB.characters[charKey] = {
-            lastScan = 0,
-            missionTable = {},
-            worldQuests = {}
-        }
+    -- Per-Character DB (neuer Hauptspeicher fuer Char-Scans)
+    if not MyRewardTrackerCharDB then
+        MyRewardTrackerCharDB = {}
+    end
+
+    if not MyRewardTrackerCharDB.lastScan then
+        MyRewardTrackerCharDB.lastScan = 0
+    end
+    if type(MyRewardTrackerCharDB.missionTable) ~= "table" then
+        MyRewardTrackerCharDB.missionTable = {}
+    end
+    if type(MyRewardTrackerCharDB.worldQuests) ~= "table" then
+        MyRewardTrackerCharDB.worldQuests = {}
+    end
+    if type(MyRewardTrackerCharDB.meta) ~= "table" then
+        MyRewardTrackerCharDB.meta = {}
+    end
+    MyRewardTrackerCharDB.meta.charKey = charKey
+
+    -- Einmalige Migration: alter accountweiter Char-Pfad -> char-spezifische DB
+    local legacyChars = MyRewardTrackerDB.characters
+    if (not MyRewardTrackerCharDB.meta.migratedFromAccountChars) and type(legacyChars) == "table" and legacyChars[charKey] then
+        local legacy = legacyChars[charKey]
+        if legacy and type(legacy) == "table" then
+            if type(legacy.missionTable) == "table" and next(MyRewardTrackerCharDB.missionTable) == nil then
+                MyRewardTrackerCharDB.missionTable = legacy.missionTable
+            end
+            if type(legacy.worldQuests) == "table" and next(MyRewardTrackerCharDB.worldQuests) == nil then
+                MyRewardTrackerCharDB.worldQuests = legacy.worldQuests
+            end
+            if type(legacy.lastScan) == "number" and (MyRewardTrackerCharDB.lastScan or 0) == 0 then
+                MyRewardTrackerCharDB.lastScan = legacy.lastScan
+            end
+        end
+        MyRewardTrackerCharDB.meta.migratedFromAccountChars = true
+    end
+
+    -- Legacy-Cleanup (pro Charakter, sicher):
+    -- Sobald die Migration fuer diesen Char abgeschlossen ist, wird der alte
+    -- accountweite Char-Eintrag entfernt. Andere Chars bleiben unberuehrt,
+    -- bis sie selbst eingeloggt/migriert wurden.
+    if MyRewardTrackerCharDB.meta.migratedFromAccountChars and type(legacyChars) == "table" and legacyChars[charKey] then
+        legacyChars[charKey] = nil
+        if next(legacyChars) == nil then
+            MyRewardTrackerDB.characters = nil
+        end
     end
 
     print("|cff00ff00[MRT]|r DB initialized for:", charKey)

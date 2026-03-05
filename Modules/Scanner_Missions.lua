@@ -19,7 +19,7 @@ local function EnsureAccountTracked()
     return MyRewardTrackerDB.account.tracked
 end
 
-local function CopyMissionRewards(mission)
+local function CopyTrackedRewards(mission)
     local rewardsCopy = {}
     if not mission or type(mission.rewards) ~= "table" then
         return rewardsCopy
@@ -30,12 +30,45 @@ local function CopyMissionRewards(mission)
             itemID = reward.itemID,
             currencyID = reward.currencyID,
             quantity = reward.quantity,
-            title = reward.title,
-            icon = reward.icon,
         }
     end
 
     return rewardsCopy
+end
+
+local function DeepCopyTable(value, seen)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    seen = seen or {}
+    if seen[value] then
+        return seen[value]
+    end
+
+    local copy = {}
+    seen[value] = copy
+
+    for k, v in pairs(value) do
+        local copyKey = DeepCopyTable(k, seen)
+        copy[copyKey] = DeepCopyTable(v, seen)
+    end
+
+    return copy
+end
+
+local function BuildCharacterMissionRecord(mission)
+    if type(mission) ~= "table" or not mission.missionID then
+        return nil
+    end
+
+    -- Charakter-Speicher bleibt absichtlich detailreich (Werkbank fuer spaetere Ideen).
+    local record = DeepCopyTable(mission)
+    if record.startTime and record.durationSeconds and not record.endTime then
+        record.endTime = record.startTime + record.durationSeconds
+    end
+
+    return record
 end
 
 local function GetMissionStateSafe(mission)
@@ -67,13 +100,13 @@ local function GetRewardKeySafe(mission)
 end
 
 local function BuildTrackedForCharacter(charKey)
-    if not MyRewardTrackerDB or not MyRewardTrackerDB.characters then
-        return
+    if not MyRewardTrackerCharDB then
+        return nil
     end
 
-    local charData = MyRewardTrackerDB.characters[charKey]
+    local charData = MyRewardTrackerCharDB
     if not charData or type(charData.missionTable) ~= "table" then
-        return
+        return nil
     end
 
     local trackedRoot = EnsureAccountTracked()
@@ -103,19 +136,15 @@ local function BuildTrackedForCharacter(charKey)
                 state = state,
                 expansionKey = GetExpansionKeySafe(mission),
                 rewardKey = GetRewardKeySafe(mission),
-                startTime = mission.startTime,
                 endTime = mission.endTime,
-                durationSeconds = mission.durationSeconds,
                 timeLeftSeconds = mission.timeLeftSeconds,
-                inProgress = mission.inProgress and true or false,
-                completed = mission.completed and true or false,
-                followerTypeID = mission.followerTypeID,
-                rewards = CopyMissionRewards(mission),
+                rewards = CopyTrackedRewards(mission),
             }
         end
     end
 
     trackedRoot[charKey] = tracked
+    return tracked
 end
 
 local function GetCharacterKey()
@@ -140,15 +169,19 @@ end
 
 local function EnsureDB()
     MyRewardTrackerDB = MyRewardTrackerDB or {}
-    MyRewardTrackerDB.characters = MyRewardTrackerDB.characters or {}
+    MyRewardTrackerDB.account = MyRewardTrackerDB.account or {}
+    MyRewardTrackerDB.account.tracked = MyRewardTrackerDB.account.tracked or {}
+
+    MyRewardTrackerCharDB = MyRewardTrackerCharDB or {}
+    MyRewardTrackerCharDB.missionTable = MyRewardTrackerCharDB.missionTable or {}
+    MyRewardTrackerCharDB.worldQuests = MyRewardTrackerCharDB.worldQuests or {}
+    MyRewardTrackerCharDB.meta = MyRewardTrackerCharDB.meta or {}
 
     local charKey = GetCharacterKey()
-
-    MyRewardTrackerDB.characters[charKey] = MyRewardTrackerDB.characters[charKey] or {
-        lastScan = 0,
-        missionTable = {},
-        worldQuests = {}
-    }
+    MyRewardTrackerCharDB.meta.charKey = charKey
+    if type(MyRewardTrackerCharDB.lastScan) ~= "number" then
+        MyRewardTrackerCharDB.lastScan = 0
+    end
 
     return charKey
 end
@@ -159,20 +192,16 @@ function Scanner:StartScan()
     local charKey = EnsureDB()
 
     -- 🔄 Alte Daten komplett ersetzen
-    MyRewardTrackerDB.characters[charKey].missionTable = {}
+    MyRewardTrackerCharDB.missionTable = {}
 
     local function SaveMission(mission)
-    if mission and mission.missionID then
-
-        -- Zeitdaten ergänzen
-        if mission.startTime and mission.durationSeconds then
-            mission.endTime = mission.startTime + mission.durationSeconds
+        local record = BuildCharacterMissionRecord(mission)
+        if not record then
+            return
         end
 
-        -- 🔒 1:1 Rohspeicherung
-        MyRewardTrackerDB.characters[charKey].missionTable[mission.missionID] = mission
+        MyRewardTrackerCharDB.missionTable[record.missionID] = record
     end
-end
 
     for _, entry in ipairs(TABLE_TYPES) do
 
@@ -194,15 +223,57 @@ end
         end
     end
 
-    MyRewardTrackerDB.characters[charKey].lastScan = time()
-    BuildTrackedForCharacter(charKey)
+    MyRewardTrackerCharDB.lastScan = time()
+    self:SyncTrackedFromCharacter(charKey)
 
     local count = 0
-    for _ in pairs(MyRewardTrackerDB.characters[charKey].missionTable) do
+    for _ in pairs(MyRewardTrackerCharDB.missionTable) do
         count = count + 1
     end
     MRT.Notifier:CheckMissions()
     
+end
+
+function Scanner:SyncTrackedFromCharacter(charKey)
+    local resolvedCharKey = charKey
+    if not resolvedCharKey or resolvedCharKey == "" then
+        if MyRewardTrackerCharDB and MyRewardTrackerCharDB.meta and MyRewardTrackerCharDB.meta.charKey then
+            resolvedCharKey = MyRewardTrackerCharDB.meta.charKey
+        else
+            resolvedCharKey = GetCharacterKey()
+        end
+    end
+
+    return BuildTrackedForCharacter(resolvedCharKey)
+end
+
+SLASH_MRTSYNCTRACKED1 = "/mrtsynctracked"
+SlashCmdList["MRTSYNCTRACKED"] = function()
+    if not MRT.Scanner or not MRT.Scanner.SyncTrackedFromCharacter then
+        print("|cffff0000[MRT]|r Scanner-Sync nicht verfuegbar.")
+        return
+    end
+
+    local tracked = MRT.Scanner:SyncTrackedFromCharacter()
+    if not tracked or not tracked.summary then
+        print("|cffff0000[MRT]|r Kein Tracked-Sync moeglich (keine Char-Daten).")
+        return
+    end
+
+    print(
+        string.format(
+            "|cff00ff00[MRT]|r Tracked-Sync OK (%s): total=%d avail=%d run=%d ready=%d",
+            tracked.charKey or "unknown",
+            tracked.summary.filteredTotal or 0,
+            tracked.summary.available or 0,
+            tracked.summary.running or 0,
+            tracked.summary.ready or 0
+        )
+    )
+end
+
+if MRT.RegisterHelpCommand then
+    MRT.RegisterHelpCommand("/mrtsynctracked", "sync't account.tracked aus aktuellem Charakter-Scan")
 end
 
 MRT.Scanner = Scanner

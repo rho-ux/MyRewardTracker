@@ -70,11 +70,7 @@ end
 -- Alle Missionen eines Char prüfen
 -- ---------------------------------
 function FilterEngine:ScanCharacter(charKey)
-
-    if not MyRewardTrackerDB then return end
-    if not MyRewardTrackerDB.characters then return end
-
-    local charData = MyRewardTrackerDB.characters[charKey]
+    local charData = MyRewardTrackerCharDB
     if not charData then return end
     if not charData.missionTable then return end
 

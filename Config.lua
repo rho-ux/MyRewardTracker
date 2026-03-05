@@ -10,6 +10,13 @@ MRT.Config.CurrencyFilters = {}
 MRT.Config.Sorting = MRT.Config.Sorting or {
     ExpansionOrder = { "wod", "legion", "bfa", "sl", "df", "tww", "unknown" },
     RewardOrder = { "item", "currency", "gold", "other" },
+    CharacterOrder = {
+        "Gehkel-Khaz'goroth",
+        "Tildal-Blackhand",
+        "Nathi-Khaz'goroth",
+        "Toma-Khaz'goroth",
+    },
+    UnknownCharsAtBottom = true,
 }
 
 MRT.Config.ExpansionMapping = MRT.Config.ExpansionMapping or {
@@ -58,6 +65,7 @@ end
 
 MRT.Config.Sorting.ExpansionIndex = BuildOrderIndex(MRT.Config.Sorting.ExpansionOrder)
 MRT.Config.Sorting.RewardIndex = BuildOrderIndex(MRT.Config.Sorting.RewardOrder)
+MRT.Config.Sorting.CharacterIndex = BuildOrderIndex(MRT.Config.Sorting.CharacterOrder)
 
 function MRT.Config:GetExpansionSortIndex(expansionKey)
     local idx = self.Sorting.ExpansionIndex[expansionKey]
@@ -73,6 +81,21 @@ function MRT.Config:GetRewardSortIndex(rewardKey)
         return idx
     end
     return self.Sorting.RewardIndex.other or 9999
+end
+
+function MRT.Config:GetCharacterSortIndex(charKey)
+    local idx = self.Sorting.CharacterIndex[charKey]
+    if idx then
+        return idx
+    end
+    local unknownAtBottom = true
+    if self.Sorting and type(self.Sorting.UnknownCharsAtBottom) == "boolean" then
+        unknownAtBottom = self.Sorting.UnknownCharsAtBottom
+    end
+    if unknownAtBottom then
+        return 9999
+    end
+    return -1
 end
 
 function MRT.Config:GetExpansionKeyByFollowerType(followerTypeID)

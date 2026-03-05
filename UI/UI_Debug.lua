@@ -38,7 +38,7 @@ local function BuildText()
     end
 
     local charKey = GetCharacterKey()
-    local charData = MyRewardTrackerDB.characters and MyRewardTrackerDB.characters[charKey]
+    local charData = MyRewardTrackerCharDB
 
     if not charData then
         return "Keine Daten für Charakter."

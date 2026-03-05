@@ -9,6 +9,16 @@ MRT.Storage = {}
 local function GetCharacterKey()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName()
+    if not realm or realm == "" then
+        local _, fullRealm = UnitFullName("player")
+        realm = fullRealm
+    end
+    if not name or name == "" then
+        name = "UnknownPlayer"
+    end
+    if not realm or realm == "" then
+        realm = "UnknownRealm"
+    end
     return name .. "-" .. realm
 end
 
@@ -21,8 +31,10 @@ function MRT.Storage:GetCharacterKey()
 end
 
 function MRT.Storage:GetCharacterData()
-    local charKey = GetCharacterKey()
-    return MyRewardTrackerDB.characters[charKey]
+    if MyRewardTrackerCharDB then
+        return MyRewardTrackerCharDB
+    end
+    return nil
 end
 
 -- =========================================================
@@ -68,11 +80,7 @@ end
 -- =========================================================
 
 function MRT.Storage:CleanupMissions(charKey, currentMissionIDs)
-
-    if not MyRewardTrackerDB then return end
-    if not MyRewardTrackerDB.characters then return end
-
-    local charData = MyRewardTrackerDB.characters[charKey]
+    local charData = self:GetCharacterData()
     if not charData then return end
     if not charData.missionTable then return end
 

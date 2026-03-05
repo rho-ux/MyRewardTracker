@@ -206,16 +206,12 @@ local function ShowSummaryPopup(availableCount, readyCount, wqCount)
 end
 
 local function CollectSummaryCounts()
-    if not MyRewardTrackerDB then return end
-    if not MyRewardTrackerDB.characters then return end
-
     local availableCount = 0
     local readyCount = 0
     local runningCount = 0
     local wqCount = 0
     local filteredTotal = 0
-    local charKey = GetCharacterKey()
-    local charData = MyRewardTrackerDB.characters[charKey]
+    local charData = MyRewardTrackerCharDB
 
     if not charData or not charData.missionTable then
         return 0, 0, 0, 0, 0
