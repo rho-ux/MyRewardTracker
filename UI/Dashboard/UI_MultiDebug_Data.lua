@@ -4,6 +4,387 @@ MRT.MultiDebugData = MRT.MultiDebugData or {}
 local Data = MRT.MultiDebugData
 local Utils = MRT.MultiDebugUtils or {}
 
+local function FormatDuration(seconds)
+    local value = tonumber(seconds) or 0
+    if value < 0 then value = 0 end
+    local days = math.floor(value / 86400)
+    local hours = math.floor((value % 86400) / 3600)
+    local minutes = math.floor((value % 3600) / 60)
+    if days > 0 then
+        return string.format("%dt %dh %dm", days, hours, minutes)
+    end
+    if hours > 0 then
+        return string.format("%dh %dm", hours, minutes)
+    end
+    return string.format("%dm", minutes)
+end
+
+local function BuildStatusText(state, mission, useColors)
+    local normalized = (state == "completed") and "ready" or state
+    local text = "verfuegbar"
+    if normalized == "ready" then
+        text = "fertig"
+    elseif normalized == "running" then
+        local seconds = tonumber(mission and mission.timeLeftSeconds)
+        if seconds and seconds > 0 then
+            text = "Rest: " .. FormatDuration(seconds)
+        else
+            text = "Rest: ?"
+        end
+    end
+    if not useColors then
+        return text
+    end
+    if normalized == "ready" then
+        return "|cff00ff00" .. text .. "|r"
+    end
+    if normalized == "running" then
+        return "|cff33aaff" .. text .. "|r"
+    end
+    return "|cffffff00" .. text .. "|r"
+end
+
+local function GetStateColorCodes(state, useColors)
+    if not useColors then
+        return "", ""
+    end
+    local normalized = (state == "completed") and "ready" or state
+    if normalized == "ready" then
+        return "|cff00ff00", "|r"
+    end
+    if normalized == "running" then
+        return "|cff33aaff", "|r"
+    end
+    return "|cffffff00", "|r"
+end
+
+local function IsStateIncludedForMulti(state)
+    return state == "running" or state == "ready" or state == "completed"
+end
+
+function Data.BuildLayoutRows(cfg, uiFilters)
+    uiFilters = uiFilters or {}
+    local selectedExpansion = tostring(uiFilters.expansionKey or "all")
+    local selectedReward = tostring(uiFilters.rewardKey or "all")
+    local highlightsOnly = uiFilters.highlightsOnly and true or false
+    local searchText = string.lower(tostring(uiFilters.searchText or ""))
+
+    local summaryRows = {}
+    local highlightRows = {}
+    local listRows = {}
+    local trackedRoot = MyRewardTrackerDB and MyRewardTrackerDB.account and MyRewardTrackerDB.account.tracked
+    if type(trackedRoot) ~= "table" then
+        summaryRows[#summaryRows + 1] = { text = "Keine account.tracked Daten vorhanden." }
+        listRows[#listRows + 1] = { text = "Keine account.tracked Daten vorhanden." }
+        return summaryRows, listRows, highlightRows
+    end
+
+    local keys = Utils.GetSortedTrackedKeys(trackedRoot)
+    if #keys == 0 then
+        summaryRows[#summaryRows + 1] = { text = "Keine Characters in account.tracked." }
+        listRows[#listRows + 1] = { text = "Keine Characters in account.tracked." }
+        return summaryRows, listRows, highlightRows
+    end
+
+    local highlightItemIDs = {}
+    local highlightCurrencyIDs = {}
+    if type(cfg.highlightItemIDs) == "table" then
+        for key, val in pairs(cfg.highlightItemIDs) do
+            local id = tonumber(key)
+            if id and id > 0 and val ~= false then
+                highlightItemIDs[id] = true
+            end
+        end
+    end
+    if type(cfg.highlightCurrencyIDs) == "table" then
+        for key, val in pairs(cfg.highlightCurrencyIDs) do
+            local id = tonumber(key)
+            if id and id > 0 and val ~= false then
+                highlightCurrencyIDs[id] = true
+            end
+        end
+    end
+
+    local function IsHighlightMission(groupInfo)
+        for _, it in ipairs(groupInfo.items or {}) do
+            if highlightItemIDs[it.itemID] then
+                return true, "item", it.itemID
+            end
+        end
+        for _, it in ipairs(groupInfo.animaItems or {}) do
+            if highlightItemIDs[it.itemID] then
+                return true, "item", it.itemID
+            end
+        end
+        for _, c in ipairs(groupInfo.currencies or {}) do
+            if highlightCurrencyIDs[c.currencyID] then
+                return true, "currency", c.currencyID
+            end
+        end
+        return false, nil, nil
+    end
+
+    local global = {
+        gold = 0,
+        anima = 0,
+        currencies = {},
+        missionsTotal = 0,
+        chars = #keys,
+    }
+    local entries = {}
+    local highlightAgg = {}
+
+    for _, charKey in ipairs(keys) do
+        local tracked = trackedRoot[charKey]
+        local missions = tracked and tracked.missions or {}
+        for missionID, mission in pairs(missions) do
+            local state = mission.state or "available"
+            if IsStateIncludedForMulti(state) then
+                global.missionsTotal = global.missionsTotal + 1
+
+                local groupInfo = Utils.BuildGroupData(mission)
+                local primaryGroup = Utils.GetPrimaryGroupKey(groupInfo)
+                if primaryGroup then
+                    local includeByGroup = true
+                    if primaryGroup == "gold" and not cfg.multiShowGold then includeByGroup = false end
+                    if primaryGroup == "currency" and not cfg.multiShowCurrency then includeByGroup = false end
+                    if primaryGroup == "items" and not cfg.multiShowItems then includeByGroup = false end
+                    if primaryGroup == "anima" and not cfg.multiShowAnima then includeByGroup = false end
+
+                    if includeByGroup then
+                        local rewardText = Utils.BuildGroupText(primaryGroup, groupInfo)
+                        local rewardSearchText = Utils.BuildGroupSearchText(primaryGroup, groupInfo)
+                        local expansionKey = mission.expansionKey or "unknown"
+                        local expansionLabel = Utils.GetExpansionLabel(expansionKey)
+                        local expansionSort = MRT.Config and MRT.Config.GetExpansionSortIndex and MRT.Config:GetExpansionSortIndex(expansionKey) or 9999
+                        local normalizedState = (state == "completed") and "ready" or state
+                        local stateSort = Utils.GetStateSort(normalizedState)
+                        local normalizedRewardKey = (primaryGroup == "items") and "item" or primaryGroup
+                        local rewardSort = MRT.Config and MRT.Config.GetRewardSortIndex and MRT.Config:GetRewardSortIndex(normalizedRewardKey) or 9999
+                        local isHighlight, highlightKind, highlightID = IsHighlightMission(groupInfo)
+
+                        if isHighlight then
+                            local highlightRewardKey = (highlightKind == "currency") and "currency" or "item"
+                            local aggKey = charKey .. "::" .. highlightRewardKey
+                            local row = highlightAgg[aggKey] or {
+                                charKey = charKey,
+                                rewardKey = highlightRewardKey,
+                                missions = 0,
+                                sampleItemID = nil,
+                                sampleCurrencyID = nil,
+                            }
+                            row.missions = row.missions + 1
+                            if highlightRewardKey == "item" and highlightID and not row.sampleItemID then
+                                row.sampleItemID = highlightID
+                            end
+                            if highlightRewardKey == "currency" and highlightID and not row.sampleCurrencyID then
+                                row.sampleCurrencyID = highlightID
+                            end
+                            highlightAgg[aggKey] = row
+                        end
+
+                        if primaryGroup == "gold" then
+                            global.gold = global.gold + (groupInfo.gold or 0)
+                        elseif primaryGroup == "anima" then
+                            local a = 0
+                            for _, it in ipairs(groupInfo.animaItems or {}) do
+                                local v = MRT.Config and MRT.Config.GetAnimaValue and MRT.Config:GetAnimaValue(it.itemID) or 0
+                                a = a + ((tonumber(v) or 0) * (tonumber(it.quantity) or 0))
+                            end
+                            global.anima = global.anima + a
+                        elseif primaryGroup == "currency" then
+                            for _, c in ipairs(groupInfo.currencies or {}) do
+                                local key = tonumber(c.currencyID) or 0
+                                local row = global.currencies[key] or {
+                                    currencyID = key,
+                                    label = (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(key) and C_CurrencyInfo.GetCurrencyInfo(key).name) or ("Currency:" .. tostring(key)),
+                                    total = 0,
+                                }
+                                row.total = row.total + (tonumber(c.quantity) or 0)
+                                global.currencies[key] = row
+                            end
+                        end
+
+                        local pass = true
+                        if selectedExpansion ~= "all" and expansionKey ~= selectedExpansion then
+                            pass = false
+                        end
+                        if selectedReward ~= "all" and normalizedRewardKey ~= selectedReward then
+                            pass = false
+                        end
+                        if highlightsOnly and not isHighlight then
+                            pass = false
+                        end
+                        if pass and searchText ~= "" then
+                            local haystack = string.lower(
+                                tostring(charKey) .. " " ..
+                                tostring(expansionLabel) .. " " ..
+                                tostring(mission.name or "unknown") .. " " ..
+                                tostring(rewardSearchText or "")
+                            )
+                            if not string.find(haystack, searchText, 1, true) then
+                                pass = false
+                            end
+                        end
+
+                        if pass then
+                            entries[#entries + 1] = {
+                                charKey = charKey,
+                                charSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(charKey) or 9999,
+                                missionID = missionID,
+                                missionName = mission.name or "Unknown",
+                                expansionKey = expansionKey,
+                                expansionLabel = expansionLabel,
+                                expansionSort = expansionSort,
+                                rewardKey = normalizedRewardKey,
+                                rewardSort = rewardSort,
+                                state = normalizedState,
+                                timeLeftSeconds = mission.timeLeftSeconds,
+                                stateSort = stateSort,
+                                rewardText = rewardText,
+                                tooltip = Utils.BuildGroupTooltip(normalizedRewardKey, groupInfo),
+                            }
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        if a.charSort ~= b.charSort then return a.charSort < b.charSort end
+        if a.charKey ~= b.charKey then return a.charKey < b.charKey end
+        if a.expansionSort ~= b.expansionSort then return a.expansionSort < b.expansionSort end
+        if a.rewardSort ~= b.rewardSort then return a.rewardSort < b.rewardSort end
+        if a.stateSort ~= b.stateSort then return a.stateSort < b.stateSort end
+        if a.missionName ~= b.missionName then return a.missionName < b.missionName end
+        return a.missionID < b.missionID
+    end)
+
+    summaryRows[#summaryRows + 1] = { text = "Gefilterte Missionseintraege (Liste): " .. tostring(#entries) .. " | aktiv gesamt: " .. tostring(global.missionsTotal) }
+    summaryRows[#summaryRows + 1] = { text = "" }
+    if cfg.multiShowGold then
+        summaryRows[#summaryRows + 1] = { text = "|cffffcc00Gesamt Gold Missionen:|r " .. Utils.FormatMoney(global.gold) }
+        summaryRows[#summaryRows + 1] = { text = "" }
+    end
+    if cfg.multiShowAnima then
+        summaryRows[#summaryRows + 1] = { text = "|cffffcc00Gesamt Anima Missionen:|r " .. tostring(global.anima) }
+        summaryRows[#summaryRows + 1] = { text = "" }
+    end
+    if cfg.multiShowCurrency then
+        summaryRows[#summaryRows + 1] = { text = "|cffffcc00Waehrung gesamt:|r" }
+        local curr = {}
+        for _, c in pairs(global.currencies) do curr[#curr + 1] = c end
+        table.sort(curr, function(a, b)
+            if a.total ~= b.total then return a.total > b.total end
+            return a.label < b.label
+        end)
+        if #curr == 0 then
+            summaryRows[#summaryRows + 1] = { text = "  - keine" }
+        else
+            for _, c in ipairs(curr) do
+                local iconText = ""
+                if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+                    local ci = C_CurrencyInfo.GetCurrencyInfo(c.currencyID)
+                    if ci and ci.iconFileID then
+                        iconText = "|T" .. tostring(ci.iconFileID) .. ":14:14:0:0|t "
+                    end
+                end
+                summaryRows[#summaryRows + 1] = {
+                    text = "  - " .. iconText .. c.label .. ": " .. tostring(c.total),
+                    tooltip = {
+                        currencyID = c.currencyID,
+                        quantity = c.total,
+                        lines = {
+                            c.label .. ": " .. tostring(c.total),
+                        }
+                    }
+                }
+            end
+        end
+    end
+
+    if cfg.showMissionHighlight then
+        local highlightList = {}
+        for _, row in pairs(highlightAgg) do
+            row.charSort = MRT.Config and MRT.Config.GetCharacterSortIndex and MRT.Config:GetCharacterSortIndex(row.charKey) or 9999
+            row.rewardSort = MRT.Config and MRT.Config.GetRewardSortIndex and MRT.Config:GetRewardSortIndex(row.rewardKey) or 9999
+            highlightList[#highlightList + 1] = row
+        end
+        table.sort(highlightList, function(a, b)
+            if a.charSort ~= b.charSort then return a.charSort < b.charSort end
+            if a.charKey ~= b.charKey then return a.charKey < b.charKey end
+            if a.rewardSort ~= b.rewardSort then return a.rewardSort < b.rewardSort end
+            return a.rewardKey < b.rewardKey
+        end)
+
+        highlightRows[#highlightRows + 1] = { text = "|cff00ccffHighlight Bereich|r" }
+        if #highlightList == 0 then
+            highlightRows[#highlightRows + 1] = { text = "  - keine Highlight-Treffer" }
+            highlightRows[#highlightRows + 1] = { text = "  - Hinweis: highlightItemIDs/highlightCurrencyIDs in multiDashboardConfig setzen" }
+        else
+            for i, h in ipairs(highlightList) do
+                if i > 12 then break end
+                local rewardLabel = "ITEMS"
+                local iconText = ""
+                local tooltipPayload = {
+                    lines = {
+                        h.charKey .. " - " .. rewardLabel,
+                        "Missionen: " .. tostring(h.missions),
+                    }
+                }
+                if h.rewardKey == "currency" then
+                    rewardLabel = "WAEHRUNG"
+                    if h.sampleCurrencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+                        local ci = C_CurrencyInfo.GetCurrencyInfo(h.sampleCurrencyID)
+                        if ci and ci.iconFileID then
+                            iconText = "|T" .. tostring(ci.iconFileID) .. ":14:14:0:0|t "
+                        end
+                    end
+                    tooltipPayload.currencyID = h.sampleCurrencyID
+                    tooltipPayload.quantity = 1
+                    tooltipPayload.lines = {
+                        h.charKey .. " - " .. rewardLabel,
+                        "Missionen: " .. tostring(h.missions),
+                    }
+                elseif h.sampleItemID then
+                    local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(h.sampleItemID)
+                    if not tex and C_Item and C_Item.GetItemInfoInstant then
+                        local _, _, _, _, _, _, _, _, _, instantTex = C_Item.GetItemInfoInstant(h.sampleItemID)
+                        tex = instantTex
+                    end
+                    if tex then
+                        iconText = "|T" .. tostring(tex) .. ":14:14:0:0|t "
+                    end
+                    tooltipPayload.itemID = h.sampleItemID
+                end
+                highlightRows[#highlightRows + 1] = {
+                    text = "  - " .. h.charKey .. " - " .. iconText,
+                    tooltip = tooltipPayload
+                }
+            end
+        end
+    else
+        highlightRows[#highlightRows + 1] = { text = "|cff808080Highlight aus (Config)|r" }
+    end
+
+    local showStatusColors = cfg.showStatusColors
+    for _, e in ipairs(entries) do
+        local statusText = BuildStatusText(e.state, { timeLeftSeconds = e.timeLeftSeconds }, showStatusColors)
+        local colorOpen, colorClose = GetStateColorCodes(e.state, showStatusColors)
+        local missionNameText = colorOpen .. e.missionName .. colorClose
+        listRows[#listRows + 1] = {
+            text = string.format("%s - %s - %s - %s - %s", e.charKey, e.expansionLabel, missionNameText, statusText, e.rewardText),
+            tooltip = e.tooltip,
+        }
+    end
+    if #entries == 0 then
+        listRows[#listRows + 1] = { text = "Keine Treffer fuer aktive Filter/Suche." }
+    end
+
+    return summaryRows, listRows, highlightRows
+end
+
 function Data.BuildLines(cfg)
     local lines = {}
     lines[#lines + 1] = "|cffffcc00Multi-Char Debug (account.tracked)|r"

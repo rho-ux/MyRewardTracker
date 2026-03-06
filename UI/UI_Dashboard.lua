@@ -301,26 +301,26 @@ local function ApplyDashboardLayout(cfg)
     local rightW = (frameW - 34) - leftW
     local leftX = 14
     local rightX = 14 + leftW + 22
-    local topY = -88
-    local topH = 220
-    local bottomY = -352
+    local topY = -92
+    local topH = 236
+    local bottomY = -376
     local bottomH = 460
 
     if missionSummaryTitle then
         missionSummaryTitle:ClearAllPoints()
-        missionSummaryTitle:SetPoint("TOPLEFT", leftX + 2, -66)
+        missionSummaryTitle:SetPoint("TOPLEFT", leftX + 2, -70)
     end
     if wqSummaryTitle then
         wqSummaryTitle:ClearAllPoints()
-        wqSummaryTitle:SetPoint("TOPLEFT", rightX + 2, -66)
+        wqSummaryTitle:SetPoint("TOPLEFT", rightX + 2, -70)
     end
     if listTitle then
         listTitle:ClearAllPoints()
-        listTitle:SetPoint("TOPLEFT", leftX + 2, -330)
+        listTitle:SetPoint("TOPLEFT", leftX + 2, -354)
     end
     if wqListTitle then
         wqListTitle:ClearAllPoints()
-        wqListTitle:SetPoint("TOPLEFT", rightX + 2, -330)
+        wqListTitle:SetPoint("TOPLEFT", rightX + 2, -354)
     end
 
     if missionSummaryScroll then
@@ -353,11 +353,11 @@ local function ApplyDashboardLayout(cfg)
         hLine:ClearAllPoints()
         hLine:SetPoint("LEFT", 12, 0)
         hLine:SetPoint("RIGHT", -12, 0)
-        hLine:SetPoint("TOP", 0, -320)
+        hLine:SetPoint("TOP", 0, -344)
     end
     if vLine then
         vLine:ClearAllPoints()
-        vLine:SetPoint("TOPLEFT", frame, "TOPLEFT", rightX - 6, -42)
+        vLine:SetPoint("TOPLEFT", frame, "TOPLEFT", rightX - 6, -64)
         vLine:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", rightX - 6, 8)
     end
 end
@@ -390,7 +390,7 @@ local function RefreshDashboard()
     ApplyDashboardLayout(dashboardCfg)
     ApplyDashboardFontSize(fontSize)
 
-    lineCharacter:SetText("Character: " .. GetCharacterKey())
+    lineCharacter:SetText("Charakter: " .. GetCharacterKey())
     local entries = {}
     local charData = MyRewardTrackerCharDB
     local shown = 0
@@ -491,20 +491,8 @@ local function RefreshDashboard()
     end)
 
     local rows = {}
-    local lastExpansionKey = nil
-    local lastRewardKey = nil
+    local charKey = GetCharacterKey()
     for _, entry in ipairs(entries) do
-        if showExpansionHeaders and lastExpansionKey ~= entry.expansionKey then
-            rows[#rows + 1] = { text = "|cffffcc00== " .. GetExpansionLabel(entry.expansionKey) .. " ==|r" }
-            lastRewardKey = nil
-        elseif lastExpansionKey ~= entry.expansionKey then
-            lastRewardKey = nil
-        end
-
-        if showRewardHeaders and lastRewardKey ~= entry.rewardKey then
-            rows[#rows + 1] = { text = "|cffb0b0b0-- " .. GetRewardLabel(entry.rewardKey) .. " --|r" }
-        end
-
         local statusColorOpen = ""
         local statusColorClose = ""
         if showStatusColors then
@@ -532,15 +520,13 @@ local function RefreshDashboard()
         local rewardText = entry.rewardPreview or "keine Belohnung"
         local missionNameText = statusColorOpen .. entry.missionName .. statusColorClose
         local statusDisplay = statusColorOpen .. statusText .. statusColorClose
-        local line = missionNameText .. " - " .. statusDisplay .. " - " .. rewardText
+        local expansionLabel = GetExpansionLabel(entry.expansionKey)
+        local line = charKey .. " - " .. expansionLabel .. " - " .. missionNameText .. " - " .. statusDisplay .. " - " .. rewardText
 
         rows[#rows + 1] = {
             text = line,
             tooltip = entry.tooltip
         }
-
-        lastExpansionKey = entry.expansionKey
-        lastRewardKey = entry.rewardKey
     end
 
     listTitle:SetText("Missionen")
@@ -556,7 +542,9 @@ local function RefreshDashboard()
         { text = "|cffb0b0b0(Platzhalter bis WQ-Modul aktiv ist)|r" },
         { text = "" },
         { text = "|cff00ccffHighlight-Bereich (reserviert)|r" },
-        { text = "|cff00ccfffuer spaetere spezielle Hinweise in WQ.|r" },
+        { text = "  - Highlight Eintrag 1" },
+        { text = "  - Highlight Eintrag 2" },
+        { text = "  - Highlight Eintrag 3" },
     }
     RenderWQSummaryRows(wqSummaryRowsData)
 
@@ -565,15 +553,18 @@ local function RefreshDashboard()
         { text = "  - Zone (mapID) 1" },
         { text = "  - Zone (mapID) 2" },
         { text = "  ..." },
-        { text = "|cffffcc00-- GEGENSTANDS WQ --|r" },
+        { text = "" },
+        { text = "|cffffcc00-- GEGENSTAENDE WQ --|r" },
         { text = "  - Zone (mapID) 1" },
         { text = "  - Zone (mapID) 2" },
         { text = "  ..." },
+        { text = "" },
         { text = "|cffffcc00-- ANIMA WQ --|r" },
         { text = "  - Zone (mapID) 1" },
         { text = "  - Zone (mapID) 2" },
         { text = "  ..." },
-        { text = "|cffffcc00-- WAEHRUNGS WQ --|r" },
+        { text = "" },
+        { text = "|cffffcc00-- WAEHRUNG WQ --|r" },
         { text = "  - Zone (mapID) 1" },
         { text = "  - Zone (mapID) 2" },
         { text = "  ..." },
@@ -612,43 +603,43 @@ local function CreateDashboard()
     lineCharacter:SetJustifyH("LEFT")
 
     missionSummaryTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    missionSummaryTitle:SetPoint("TOPLEFT", 16, -66)
+    missionSummaryTitle:SetPoint("TOPLEFT", 16, -70)
     missionSummaryTitle:SetJustifyH("LEFT")
     missionSummaryTitle:SetText("Zusammenfassung Missionen")
 
     wqSummaryTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wqSummaryTitle:SetPoint("TOPLEFT", 790, -66)
+    wqSummaryTitle:SetPoint("TOPLEFT", 790, -70)
     wqSummaryTitle:SetJustifyH("LEFT")
     wqSummaryTitle:SetText("Zusammenfassung WorldQuest")
 
     listTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    listTitle:SetPoint("TOPLEFT", 16, -330)
+    listTitle:SetPoint("TOPLEFT", 16, -354)
     listTitle:SetJustifyH("LEFT")
     listTitle:SetText("Missionen")
 
     wqListTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wqListTitle:SetPoint("TOPLEFT", 790, -330)
+    wqListTitle:SetPoint("TOPLEFT", 790, -354)
     wqListTitle:SetJustifyH("LEFT")
     wqListTitle:SetText("WorldQuest")
 
     missionSummaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    missionSummaryScroll:SetPoint("TOPLEFT", 14, -88)
-    missionSummaryScroll:SetSize(740, 220)
+    missionSummaryScroll:SetPoint("TOPLEFT", 14, -92)
+    missionSummaryScroll:SetSize(740, 236)
 
     missionSummaryContent = CreateFrame("Frame", nil, missionSummaryScroll)
-    missionSummaryContent:SetSize(700, 220)
+    missionSummaryContent:SetSize(700, 236)
     missionSummaryScroll:SetScrollChild(missionSummaryContent)
 
     wqSummaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    wqSummaryScroll:SetPoint("TOPLEFT", 788, -88)
-    wqSummaryScroll:SetSize(740, 220)
+    wqSummaryScroll:SetPoint("TOPLEFT", 788, -92)
+    wqSummaryScroll:SetSize(740, 236)
 
     wqSummaryContent = CreateFrame("Frame", nil, wqSummaryScroll)
-    wqSummaryContent:SetSize(700, 220)
+    wqSummaryContent:SetSize(700, 236)
     wqSummaryScroll:SetScrollChild(wqSummaryContent)
 
     listScrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    listScrollFrame:SetPoint("TOPLEFT", 14, -352)
+    listScrollFrame:SetPoint("TOPLEFT", 14, -376)
     listScrollFrame:SetSize(740, 460)
 
     listContent = CreateFrame("Frame", nil, listScrollFrame)
@@ -656,7 +647,7 @@ local function CreateDashboard()
     listScrollFrame:SetScrollChild(listContent)
 
     wqListScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    wqListScroll:SetPoint("TOPLEFT", 788, -352)
+    wqListScroll:SetPoint("TOPLEFT", 788, -376)
     wqListScroll:SetSize(740, 460)
 
     wqListContent = CreateFrame("Frame", nil, wqListScroll)
@@ -668,12 +659,12 @@ local function CreateDashboard()
     hLine:SetHeight(2)
     hLine:SetPoint("LEFT", 12, 0)
     hLine:SetPoint("RIGHT", -12, 0)
-    hLine:SetPoint("TOP", 0, -320)
+    hLine:SetPoint("TOP", 0, -344)
 
     vLine = frame:CreateTexture(nil, "ARTWORK")
     vLine:SetColorTexture(0.8, 0, 0, 0.9)
     vLine:SetWidth(2)
-    vLine:SetPoint("TOP", 0, -42)
+    vLine:SetPoint("TOP", 0, -64)
     vLine:SetPoint("BOTTOM", 0, 8)
 
     local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -694,22 +685,44 @@ local function CreateDashboard()
         end
     end)
 
+    local switchButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    switchButton:SetSize(100, 24)
+    switchButton:SetPoint("LEFT", configButton, "RIGHT", 10, 0)
+    switchButton:SetText("Multi-Char")
+    switchButton:SetScript("OnClick", function()
+        Dashboard:Hide()
+        if MRT.MultiDebug and MRT.MultiDebug.Show then
+            MRT.MultiDebug:Show()
+        elseif MRT.MultiDebug and MRT.MultiDebug.Toggle then
+            MRT.MultiDebug:Toggle()
+        end
+    end)
+
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     closeButton:SetPoint("TOPRIGHT", 0, 0)
 end
 
-function Dashboard:Toggle()
+function Dashboard:Show()
     if not frame then
         CreateDashboard()
     end
+    RefreshDashboard()
+    frame:Show()
+end
 
-    if frame:IsShown() then
+function Dashboard:Hide()
+    if frame and frame:IsShown() then
         frame:Hide()
+    end
+end
+
+function Dashboard:Toggle()
+    if frame and frame:IsShown() then
+        Dashboard:Hide()
         return
     end
 
-    RefreshDashboard()
-    frame:Show()
+    Dashboard:Show()
 end
 
 function Dashboard:Refresh()

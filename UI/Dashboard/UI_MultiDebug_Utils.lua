@@ -11,7 +11,12 @@ function Utils.FormatMoney(copper)
     local gold = math.floor(value / 10000)
     local silver = math.floor((value % 10000) / 100)
     local bronze = value % 100
-    return string.format("%dg %ds %dc", gold, silver, bronze)
+    return string.format(
+        "%d|cffffd100g|r %d|cffffffffs|r %d|cffb87333c|r",
+        gold,
+        silver,
+        bronze
+    )
 end
 
 function Utils.GetExpansionLabel(expansionKey)
@@ -97,12 +102,12 @@ function Utils.BuildGroupText(groupKey, info)
     if groupKey == "currency" then
         local parts = {}
         for _, c in ipairs(info.currencies or {}) do
-            local name = "Currency:" .. tostring(c.currencyID)
+            local iconText = ""
             local cfg = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(c.currencyID)
-            if cfg and cfg.name and cfg.name ~= "" then
-                name = cfg.name
+            if cfg and cfg.iconFileID then
+                iconText = "|T" .. tostring(cfg.iconFileID) .. ":14:14:0:0|t "
             end
-            parts[#parts + 1] = name .. " x" .. tostring(c.quantity or 0)
+            parts[#parts + 1] = iconText .. "x" .. tostring(c.quantity or 0)
         end
         return table.concat(parts, ", ")
     end
@@ -110,14 +115,106 @@ function Utils.BuildGroupText(groupKey, info)
     local src = groupKey == "anima" and info.animaItems or info.items
     local parts = {}
     for _, it in ipairs(src or {}) do
-        local label = "Item:" .. tostring(it.itemID)
-        local link = select(2, GetItemInfo(it.itemID))
+        local icon = nil
+        local _, _, _, _, _, _, _, _, _, texture = GetItemInfo(it.itemID)
+        if not texture and C_Item and C_Item.GetItemInfoInstant then
+            local _, _, _, _, _, _, _, _, _, instantTexture = C_Item.GetItemInfoInstant(it.itemID)
+            texture = instantTexture
+        end
+        if texture then
+            icon = "|T" .. tostring(texture) .. ":14:14:0:0|t "
+        else
+            icon = ""
+        end
+        parts[#parts + 1] = icon .. "x" .. tostring(it.quantity or 0)
+    end
+    return table.concat(parts, ", ")
+end
+
+function Utils.BuildGroupTooltip(groupKey, info)
+    local payload = { lines = {} }
+
+    if groupKey == "gold" then
+        payload.lines[#payload.lines + 1] = "Gold " .. Utils.FormatMoney(info.gold or 0)
+        return payload
+    end
+
+    if groupKey == "currency" then
+        local first = nil
+        for _, c in ipairs(info.currencies or {}) do
+            local name = "Currency:" .. tostring(c.currencyID)
+            local cfg = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(c.currencyID)
+            if cfg and cfg.name and cfg.name ~= "" then
+                name = cfg.name
+            end
+            payload.lines[#payload.lines + 1] = name .. " x" .. tostring(c.quantity or 0)
+            if not first then
+                first = c
+            end
+        end
+        if first then
+            payload.currencyID = first.currencyID
+            payload.quantity = first.quantity or 0
+            return payload
+        end
+        return nil
+    end
+
+    local src = (groupKey == "anima") and (info.animaItems or {}) or (info.items or {})
+    local firstItemID = nil
+    for _, it in ipairs(src) do
+        local itemID = it.itemID
+        local label = "Item:" .. tostring(itemID)
+        local link = select(2, GetItemInfo(itemID))
         if link and link ~= "" then
             label = link
         end
-        parts[#parts + 1] = label .. " x" .. tostring(it.quantity or 0)
+        payload.lines[#payload.lines + 1] = label .. " x" .. tostring(it.quantity or 0)
+        if not firstItemID then
+            firstItemID = itemID
+            payload.itemID = itemID
+            if link and link ~= "" then
+                payload.itemLink = link
+            end
+        end
     end
-    return table.concat(parts, ", ")
+    if firstItemID then
+        return payload
+    end
+
+    return nil
+end
+
+function Utils.BuildGroupSearchText(groupKey, info)
+    if groupKey == "gold" then
+        return "gold " .. tostring(info.gold or 0)
+    end
+
+    if groupKey == "currency" then
+        local parts = {}
+        for _, c in ipairs(info.currencies or {}) do
+            local name = "currency:" .. tostring(c.currencyID)
+            local cfg = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(c.currencyID)
+            if cfg and cfg.name and cfg.name ~= "" then
+                name = cfg.name
+            end
+            parts[#parts + 1] = name .. " " .. tostring(c.quantity or 0)
+        end
+        return table.concat(parts, " ")
+    end
+
+    local src = (groupKey == "anima") and (info.animaItems or {}) or (info.items or {})
+    local parts = {}
+    for _, it in ipairs(src) do
+        local itemID = it.itemID
+        local name = "item:" .. tostring(itemID)
+        local itemName = GetItemInfo(itemID)
+        if itemName and itemName ~= "" then
+            name = itemName
+        end
+        parts[#parts + 1] = name .. " " .. tostring(it.quantity or 0)
+    end
+    return table.concat(parts, " ")
 end
 
 function Utils.GetSortedTrackedKeys(trackedRoot)

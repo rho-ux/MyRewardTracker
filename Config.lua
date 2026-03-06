@@ -304,6 +304,95 @@ function MRT.Config:GetDashboardConfig()
     return cfg
 end
 
+function MRT.Config:GetMultiDashboardConfig()
+    MyRewardTrackerDB = MyRewardTrackerDB or {}
+    MyRewardTrackerDB.account = MyRewardTrackerDB.account or {}
+    MyRewardTrackerDB.account.multiDashboardConfig = MyRewardTrackerDB.account.multiDashboardConfig or {}
+
+    local cfg = MyRewardTrackerDB.account.multiDashboardConfig
+    local old = MyRewardTrackerDB.account.dashboardConfig or {}
+
+    if type(cfg.multiShowGold) ~= "boolean" then
+        if type(old.multiShowGold) == "boolean" then
+            cfg.multiShowGold = old.multiShowGold
+        else
+            cfg.multiShowGold = true
+        end
+    end
+    if type(cfg.multiShowCurrency) ~= "boolean" then
+        if type(old.multiShowCurrency) == "boolean" then
+            cfg.multiShowCurrency = old.multiShowCurrency
+        else
+            cfg.multiShowCurrency = true
+        end
+    end
+    if type(cfg.multiShowItems) ~= "boolean" then
+        if type(old.multiShowItems) == "boolean" then
+            cfg.multiShowItems = old.multiShowItems
+        else
+            cfg.multiShowItems = true
+        end
+    end
+    if type(cfg.multiShowAnima) ~= "boolean" then
+        if type(old.multiShowAnima) == "boolean" then
+            cfg.multiShowAnima = old.multiShowAnima
+        else
+            cfg.multiShowAnima = true
+        end
+    end
+    if type(cfg.showExpansionHeaders) ~= "boolean" then
+        cfg.showExpansionHeaders = true
+    end
+    if type(cfg.showRewardHeaders) ~= "boolean" then
+        cfg.showRewardHeaders = true
+    end
+    if type(cfg.showStatusColors) ~= "boolean" then
+        cfg.showStatusColors = true
+    end
+    if type(cfg.showMissionHighlight) ~= "boolean" then
+        if type(old.showMissionHighlight) == "boolean" then
+            cfg.showMissionHighlight = old.showMissionHighlight
+        else
+            cfg.showMissionHighlight = true
+        end
+    end
+    if type(cfg.fontSize) ~= "number" then
+        cfg.fontSize = tonumber(old.fontSize) or 13
+    end
+    if cfg.fontSize < 10 then cfg.fontSize = 10 end
+    if cfg.fontSize > 20 then cfg.fontSize = 20 end
+
+    if type(cfg.lineHeight) ~= "number" then
+        cfg.lineHeight = tonumber(old.lineHeight) or 18
+    end
+    if cfg.lineHeight < 16 then cfg.lineHeight = 16 end
+    if cfg.lineHeight > 28 then cfg.lineHeight = 28 end
+
+    if type(cfg.headerStyle) ~= "string" then
+        cfg.headerStyle = old.headerStyle or "normal"
+    end
+    if cfg.headerStyle ~= "normal" and cfg.headerStyle ~= "emphasis" then
+        cfg.headerStyle = "normal"
+    end
+
+    if type(cfg.topSplitRatio) ~= "number" then
+        cfg.topSplitRatio = 56
+    end
+    if cfg.topSplitRatio < 40 then cfg.topSplitRatio = 40 end
+    if cfg.topSplitRatio > 75 then cfg.topSplitRatio = 75 end
+
+    if type(cfg.highlightItemIDs) ~= "table" then
+        cfg.highlightItemIDs = { [163036] = true }
+    elseif next(cfg.highlightItemIDs) == nil then
+        cfg.highlightItemIDs[163036] = true
+    end
+    if type(cfg.highlightCurrencyIDs) ~= "table" then
+        cfg.highlightCurrencyIDs = {}
+    end
+
+    return cfg
+end
+
 function MRT.Config:IsDashboardSortDebugEnabled()
     local cfg = self:GetDashboardConfig()
     return cfg.showSortDebug

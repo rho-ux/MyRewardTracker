@@ -33,7 +33,12 @@ function Utils.FormatMoney(copper)
     local silver = math.floor((value % 10000) / 100)
     local bronze = value % 100
 
-    return string.format("%dg %ds %dc", gold, silver, bronze)
+    return string.format(
+        "%d|cffffd100g|r %d|cffffffffs|r %d|cffb87333c|r",
+        gold,
+        silver,
+        bronze
+    )
 end
 
 function Utils.FormatDuration(seconds)
@@ -176,26 +181,19 @@ function Utils.BuildRewardPreview(mission, compactMode)
         local iconText = ""
 
         if reward.itemID then
-            local itemLink, itemName, itemIcon = Utils.ResolveItemData(reward)
+            local _, _, itemIcon = Utils.ResolveItemData(reward)
             if itemIcon then
                 iconText = "|T" .. tostring(itemIcon) .. ":14:14:0:0|t "
             end
-            if itemLink and itemLink ~= "" then
-                parts[#parts + 1] = iconText .. itemLink .. " x" .. qty
-            else
-                parts[#parts + 1] = iconText .. (itemName or ("Item:" .. reward.itemID)) .. " x" .. qty
-            end
+            parts[#parts + 1] = iconText .. "x" .. qty
         elseif reward.currencyID == 0 then
-            if reward.icon then
-                iconText = "|T" .. tostring(reward.icon) .. ":14:14:0:0|t "
-            end
-            parts[#parts + 1] = iconText .. "Gold " .. Utils.FormatMoney(qty)
+            parts[#parts + 1] = Utils.FormatMoney(qty)
         elseif reward.currencyID then
-            local name, currencyIcon = Utils.ResolveCurrencyData(reward)
+            local _, currencyIcon = Utils.ResolveCurrencyData(reward)
             if currencyIcon then
                 iconText = "|T" .. tostring(currencyIcon) .. ":14:14:0:0|t "
             end
-            parts[#parts + 1] = iconText .. name .. " x" .. qty
+            parts[#parts + 1] = iconText .. "x" .. qty
         end
     end
 
@@ -417,7 +415,7 @@ function Utils.ShowRowTooltip(row)
     end
 
     local tooltip = data.tooltip
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
 
     if tooltip.itemLink then
         GameTooltip:SetHyperlink(tooltip.itemLink)

@@ -15,6 +15,13 @@ local function GetDashboardCfg()
     return {}
 end
 
+local function GetMultiCfg()
+    if MRT.Config and MRT.Config.GetMultiDashboardConfig then
+        return MRT.Config:GetMultiDashboardConfig()
+    end
+    return {}
+end
+
 local function GetFilterCfg()
     if MRT.FilterConfig and MRT.FilterConfig.GetActive then
         return MRT.FilterConfig:GetActive()
@@ -83,6 +90,7 @@ end
 
 local function BuildLines()
     local d = GetDashboardCfg()
+    local m = GetMultiCfg()
     local f = GetFilterCfg()
     local n = GetNotifierCfg()
     local lines = {}
@@ -90,18 +98,26 @@ local function BuildLines()
     lines[#lines + 1] = "|cffffcc00Config Debug (accountweit)|r"
     lines[#lines + 1] = ""
 
-    lines[#lines + 1] = "|cffffcc00Dashboard|r"
+    lines[#lines + 1] = "|cffffcc00Dashboard (Charakter)|r"
     lines[#lines + 1] = "  showSortDebug: " .. tostring(d.showSortDebug)
     lines[#lines + 1] = "  showRewardDetails: " .. tostring(d.showRewardDetails)
     lines[#lines + 1] = "  compactList: " .. tostring(d.compactList)
     lines[#lines + 1] = "  showGroupGold/Currency/Items/Anima: " .. tostring(d.showGroupGold) .. "/" .. tostring(d.showGroupCurrency) .. "/" .. tostring(d.showGroupItems) .. "/" .. tostring(d.showGroupAnima)
-    lines[#lines + 1] = "  multiShowGold/Currency/Items/Anima: " .. tostring(d.multiShowGold) .. "/" .. tostring(d.multiShowCurrency) .. "/" .. tostring(d.multiShowItems) .. "/" .. tostring(d.multiShowAnima)
-    lines[#lines + 1] = "  multiDetailLong: " .. tostring(d.multiDetailLong)
     lines[#lines + 1] = "  fontSize: " .. tostring(d.fontSize)
     lines[#lines + 1] = "  lineHeight: " .. tostring(d.lineHeight)
     lines[#lines + 1] = "  headerStyle: " .. tostring(d.headerStyle)
     lines[#lines + 1] = "  splitRatio: " .. tostring(d.splitRatio)
     lines[#lines + 1] = "  showMissionHighlight: " .. tostring(d.showMissionHighlight)
+    lines[#lines + 1] = ""
+
+    lines[#lines + 1] = "|cffffcc00Dashboard (Multi-Char)|r"
+    lines[#lines + 1] = "  multiShowGold/Currency/Items/Anima: " .. tostring(m.multiShowGold) .. "/" .. tostring(m.multiShowCurrency) .. "/" .. tostring(m.multiShowItems) .. "/" .. tostring(m.multiShowAnima)
+    lines[#lines + 1] = "  showExpansionHeaders/showRewardHeaders/showStatusColors: " .. tostring(m.showExpansionHeaders) .. "/" .. tostring(m.showRewardHeaders) .. "/" .. tostring(m.showStatusColors)
+    lines[#lines + 1] = "  fontSize: " .. tostring(m.fontSize)
+    lines[#lines + 1] = "  lineHeight: " .. tostring(m.lineHeight)
+    lines[#lines + 1] = "  headerStyle: " .. tostring(m.headerStyle)
+    lines[#lines + 1] = "  topSplitRatio: " .. tostring(m.topSplitRatio)
+    lines[#lines + 1] = "  showMissionHighlight: " .. tostring(m.showMissionHighlight)
     lines[#lines + 1] = ""
 
     lines[#lines + 1] = "|cffffcc00Filter|r"
@@ -152,15 +168,19 @@ end
 
 local function BuildControls()
     local d = GetDashboardCfg()
+    local m = GetMultiCfg()
     local f = GetFilterCfg()
     local n = GetNotifierCfg()
 
     CreateToggle(frame, 14, 14, "SortDebug", function() return d.showSortDebug end, function(v) d.showSortDebug = v end)
     CreateToggle(frame, 114, 14, "RewardDetails", function() return d.showRewardDetails end, function(v) d.showRewardDetails = v end)
     CreateToggle(frame, 244, 14, "CompactList", function() return d.compactList end, function(v) d.compactList = v end)
-    CreateToggle(frame, 354, 14, "MultiDetailLong", function() return d.multiDetailLong end, function(v) d.multiDetailLong = v end)
+    CreateToggle(frame, 354, 14, "M-Highlight", function() return m.showMissionHighlight end, function(v) m.showMissionHighlight = v end)
     CreateToggle(frame, 494, 14, "AnimaBypass", function() return f.AnimaBypassFilter end, function(v) f.AnimaBypassFilter = v end)
     CreateToggle(frame, 14, 66, "MissionHighlight", function() return d.showMissionHighlight end, function(v) d.showMissionHighlight = v end)
+    CreateToggle(frame, 174, 66, "M-ExpHdr", function() return m.showExpansionHeaders end, function(v) m.showExpansionHeaders = v end)
+    CreateToggle(frame, 294, 66, "M-RewHdr", function() return m.showRewardHeaders end, function(v) m.showRewardHeaders = v end)
+    CreateToggle(frame, 414, 66, "M-Status", function() return m.showStatusColors end, function(v) m.showStatusColors = v end)
 
     CreateStepButton(frame, 14, 40, "G-", function() f.GoldMinimum = math.max(0, (tonumber(f.GoldMinimum) or 0) - 1) end)
     CreateStepButton(frame, 60, 40, "G+", function() f.GoldMinimum = (tonumber(f.GoldMinimum) or 0) + 1 end)
@@ -192,6 +212,20 @@ local function BuildControls()
             d.headerStyle = "emphasis"
         end
     end)
+
+    CreateStepButton(frame, 14, 92, "MF-", function() m.fontSize = math.max(10, (tonumber(m.fontSize) or 13) - 1) end)
+    CreateStepButton(frame, 60, 92, "MF+", function() m.fontSize = math.min(20, (tonumber(m.fontSize) or 13) + 1) end)
+    CreateStepButton(frame, 114, 92, "MLH-", function() m.lineHeight = math.max(16, (tonumber(m.lineHeight) or 18) - 1) end)
+    CreateStepButton(frame, 160, 92, "MLH+", function() m.lineHeight = math.min(28, (tonumber(m.lineHeight) or 18) + 1) end)
+    CreateStepButton(frame, 214, 92, "MSP-", function() m.topSplitRatio = math.max(40, (tonumber(m.topSplitRatio) or 60) - 1) end)
+    CreateStepButton(frame, 260, 92, "MSP+", function() m.topSplitRatio = math.min(75, (tonumber(m.topSplitRatio) or 60) + 1) end)
+    CreateStepButton(frame, 314, 92, "MHS", function()
+        if tostring(m.headerStyle) == "emphasis" then
+            m.headerStyle = "normal"
+        else
+            m.headerStyle = "emphasis"
+        end
+    end)
 end
 
 function ConfigDebug.Refresh()
@@ -211,7 +245,8 @@ local function CreateUI()
     frame = CreateFrame("Frame", "MRT_ConfigDebugFrame", UIParent, "BackdropTemplate")
     frame:SetSize(620, 520)
     frame:SetPoint("CENTER", -120, 40)
-    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    frame:SetFrameLevel(200)
     frame:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
@@ -262,6 +297,9 @@ function ConfigDebug.Toggle()
         frame:Hide()
         return
     end
+    frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    frame:SetFrameLevel(200)
+    frame:Raise()
     ConfigDebug.Refresh()
     frame:Show()
 end

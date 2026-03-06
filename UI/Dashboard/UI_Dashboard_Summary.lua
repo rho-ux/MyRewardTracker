@@ -11,12 +11,12 @@ function Summary.BuildAggregateRows(goldActive, goldTotal, animaActive, animaTot
     end
 
     if cfg.showGroupGold then
-        add("|cffffcc00Gesamt Gold Mission:|r " .. Utils.FormatMoney(goldActive or 0) .. " / " .. Utils.FormatMoney(goldTotal or 0))
+        add("|cffffcc00Gesamt Gold Missionen:|r " .. Utils.FormatMoney(goldActive or 0) .. " / " .. Utils.FormatMoney(goldTotal or 0))
         add("")
     end
 
     if cfg.showGroupAnima then
-        add("|cffffcc00Gesamt Anima Mission:|r " .. tostring(animaActive or 0) .. " / " .. tostring(animaTotal or 0))
+        add("|cffffcc00Gesamt Anima Missionen:|r " .. tostring(animaActive or 0) .. " / " .. tostring(animaTotal or 0))
         add("")
     end
 
@@ -55,6 +55,7 @@ function Summary.BuildAggregateRows(goldActive, goldTotal, animaActive, animaTot
     end
 
     if cfg.showMissionHighlight then
+        add("")
         add("|cff00ccffHighlight Bereich (reserviert)|r")
         add("  - Highlight Eintrag 1")
         add("  - Highlight Eintrag 2")
