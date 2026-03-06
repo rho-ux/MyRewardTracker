@@ -5,341 +5,47 @@ MRT.Dashboard = Dashboard
 
 local frame
 local lineCharacter
-local lineAvailable
-local lineReady
-local lineRunning
-local lineWQ
 local listTitle
 local listContent
 local listScrollFrame
 local listRows = {}
-local optionSortDebug
-local optionExpansionHeaders
-local optionRewardHeaders
-local optionStatusColors
-local optionRewardDetails
-local optionCompactList
-local optionDebugForceRemaining
-local optionGroupGold
-local optionGroupCurrency
-local optionGroupItems
-local optionGroupAnima
-local optionAnimaBypassFilter
-local fontSizeLabel
-local summaryTitle
-local summaryContent
-local summaryRows = {}
+local missionSummaryTitle
+local missionSummaryContent
+local missionSummaryRows = {}
+local missionSummaryScroll
+local wqSummaryTitle
+local wqSummaryContent
+local wqSummaryRows = {}
+local wqSummaryScroll
+local wqListTitle
+local wqListContent
+local wqListRows = {}
+local wqListScroll
+local hLine
+local vLine
 
-local function GetColoredStateLabel(state, useColors)
-    if not useColors then
-        if state == "ready" then
-            return "fertig"
-        end
-        if state == "running" then
-            return "laeuft"
-        end
-        return "verfuegbar"
-    end
+local Utils = MRT.DashboardUtils or {}
+local SummaryBuilder = MRT.DashboardSummary or {}
 
-    if state == "ready" then
-        return "|cff00ff00fertig|r"
-    end
-    if state == "running" then
-        return "|cff33aafflaeuft|r"
-    end
-    return "|cffffff00verfuegbar|r"
-end
-
-local function FormatMoney(copper)
-    local value = tonumber(copper) or 0
-    if value < 0 then
-        value = 0
-    end
-
-    local gold = math.floor(value / 10000)
-    local silver = math.floor((value % 10000) / 100)
-    local bronze = value % 100
-
-    return string.format("%dg %ds %dc", gold, silver, bronze)
-end
-
-local function FormatDuration(seconds)
-    local value = tonumber(seconds) or 0
-    if value < 0 then
-        value = 0
-    end
-
-    local days = math.floor(value / 86400)
-    local hours = math.floor((value % 86400) / 3600)
-    local minutes = math.floor((value % 3600) / 60)
-
-    if days > 0 then
-        return string.format("%dt %dh %dm", days, hours, minutes)
-    end
-    if hours > 0 then
-        return string.format("%dh %dm", hours, minutes)
-    end
-    return string.format("%dm", minutes)
-end
-
-local function GetMissionRemainingText(mission, state)
-    if state ~= "running" or not mission then
-        return nil
-    end
-
-    local seconds = tonumber(mission.timeLeftSeconds)
-    if not seconds and mission.endTime then
-        seconds = tonumber(mission.endTime) - time()
-    end
-
-    if not seconds then
-        return nil
-    end
-
-    if seconds <= 0 then
-        return "bereit"
-    end
-
-    return FormatDuration(seconds)
-end
-
-local function GetDebugRemainingText(mission, state)
-    if state ~= "available" then
-        return nil
-    end
-
-    local seconds = tonumber(mission and mission.durationSeconds)
-    if not seconds or seconds <= 0 then
-        seconds = 5400
-    end
-
-    return FormatDuration(seconds) .. " (test)"
-end
-
-local function FormatRemainingLabel(remainingText)
-    if not remainingText or remainingText == "" then
-        return nil
-    end
-
-    if remainingText == "bereit" then
-        return "|cff00ff00Rest: bereit|r"
-    end
-
-    return "|cffb0b0b0Rest: " .. remainingText .. "|r"
-end
-
-local function ResolveItemData(reward)
-    if not reward then
-        return nil, nil, nil
-    end
-
-    local itemID = reward.itemID
-    local link = reward.itemLink
-    local name = reward.name
-    local icon = reward.icon
-
-    if itemID then
-        local itemName, itemLink, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemID)
-        if itemLink and itemLink ~= "" then
-            link = itemLink
-        end
-        if itemName and itemName ~= "" then
-            name = itemName
-        end
-        if itemTexture then
-            icon = itemTexture
-        end
-
-        if (not name or name == "") or not icon then
-            local instantName, _, _, _, _, _, _, _, _, instantIcon = C_Item.GetItemInfoInstant(itemID)
-            if instantName and instantName ~= "" and (not name or name == "") then
-                name = instantName
-            end
-            if instantIcon and not icon then
-                icon = instantIcon
-            end
-        end
-    end
-
-    if (not name or name == "") and itemID then
-        name = "Item:" .. itemID
-    end
-
-    return link, name, icon
-end
-
-local function ResolveCurrencyData(reward)
-    if not reward or not reward.currencyID then
-        return nil, nil
-    end
-
-    local name = reward.name
-    local icon = reward.icon
-    local info = C_CurrencyInfo.GetCurrencyInfo(reward.currencyID)
-    if info then
-        if info.name and info.name ~= "" then
-            name = info.name
-        end
-        if info.iconFileID then
-            icon = info.iconFileID
-        end
-    end
-
-    if not name or name == "" then
-        name = "Currency:" .. reward.currencyID
-    end
-
-    return name, icon
-end
-
-local function BuildRewardPreview(mission, compactMode)
-    if not mission or not mission.rewards then
-        return nil
-    end
-
-    local parts = {}
-    for _, reward in ipairs(mission.rewards) do
-        local qty = reward.quantity or 0
-        local iconText = ""
-
-        if reward.itemID then
-            local itemLink, itemName, itemIcon = ResolveItemData(reward)
-            if itemIcon then
-                iconText = "|T" .. tostring(itemIcon) .. ":14:14:0:0|t "
-            end
-            if itemLink and itemLink ~= "" then
-                parts[#parts + 1] = iconText .. itemLink .. " x" .. qty
-            else
-                parts[#parts + 1] = iconText .. (itemName or ("Item:" .. reward.itemID)) .. " x" .. qty
-            end
-        elseif reward.currencyID == 0 then
-            if reward.icon then
-                iconText = "|T" .. tostring(reward.icon) .. ":14:14:0:0|t "
-            end
-            parts[#parts + 1] = iconText .. "Gold " .. FormatMoney(qty)
-        elseif reward.currencyID then
-            local name, currencyIcon = ResolveCurrencyData(reward)
-            if currencyIcon then
-                iconText = "|T" .. tostring(currencyIcon) .. ":14:14:0:0|t "
-            end
-            parts[#parts + 1] = iconText .. name .. " x" .. qty
-        end
-    end
-
-    if #parts == 0 then
-        return nil
-    end
-
-    if compactMode then
-        if #parts > 1 then
-            return parts[1] .. " |cffb0b0b0(+" .. (#parts - 1) .. ")|r"
-        end
-        return parts[1]
-    end
-
-    return table.concat(parts, ", ")
-end
-
-local function BuildRewardPriorityNote(mission, rewardKey)
-    if not mission or not mission.rewards then
-        return nil
-    end
-
-    local hasItem = false
-    local hasCurrency = false
-    local hasGold = false
-
-    for _, reward in ipairs(mission.rewards) do
-        if reward.itemID then
-            hasItem = true
-        elseif reward.currencyID == 0 then
-            hasGold = true
-        elseif reward.currencyID then
-            hasCurrency = true
-        end
-    end
-
-    local parts = {}
-    if hasItem then parts[#parts + 1] = "item" end
-    if hasCurrency then parts[#parts + 1] = "waehrung" end
-    if hasGold then parts[#parts + 1] = "gold" end
-
-    if #parts <= 1 then
-        return nil
-    end
-
-    local groupLabel = string.upper(rewardKey or "other")
-    if MRT.Config and MRT.Config.Labels and MRT.Config.Labels.Reward and MRT.Config.Labels.Reward[rewardKey] then
-        groupLabel = MRT.Config.Labels.Reward[rewardKey]
-    end
-
-    return "mix(" .. table.concat(parts, "+") .. ") -> " .. groupLabel
-end
-
-local function BuildRewardTooltipData(mission)
-    if not mission or not mission.rewards then
-        return nil
-    end
-
-    local payload = { lines = {} }
-    for _, reward in ipairs(mission.rewards) do
-        local qty = reward.quantity or 0
-        if reward.itemID then
-            local itemLink, itemName = ResolveItemData(reward)
-            if not payload.itemLink and itemLink then
-                payload.itemLink = itemLink
-            end
-            if not payload.itemID then
-                payload.itemID = reward.itemID
-            end
-            payload.lines[#payload.lines + 1] = (itemLink or itemName or ("Item:" .. reward.itemID)) .. " x" .. qty
-        elseif reward.currencyID == 0 then
-            payload.lines[#payload.lines + 1] = "Gold " .. FormatMoney(qty)
-        elseif reward.currencyID then
-            local currencyName = ResolveCurrencyData(reward)
-            if not payload.itemLink and not payload.itemID and not payload.currencyID then
-                payload.currencyID = reward.currencyID
-                payload.quantity = qty
-            end
-            payload.lines[#payload.lines + 1] = (currencyName or ("Currency:" .. reward.currencyID)) .. " x" .. qty
-        end
-    end
-
-    if #payload.lines == 0 then
-        return nil
-    end
-
-    return payload
-end
-
-local function GetMissionExpansionKey(mission)
-    if not mission then
-        return "unknown"
-    end
-
-    local followerTypeID = mission.followerTypeID
-    if MRT.Config and MRT.Config.GetExpansionKeyByFollowerType then
-        return MRT.Config:GetExpansionKeyByFollowerType(followerTypeID)
-    end
-
-    return "unknown"
-end
-
-local function GetCharacterKey()
-    local name = UnitName("player")
-    local realm = GetNormalizedRealmName()
-    if not realm or realm == "" then
-        local _, fullRealm = UnitFullName("player")
-        realm = fullRealm
-    end
-    if not name or name == "" then
-        name = "UnknownPlayer"
-    end
-    if not realm or realm == "" then
-        realm = "UnknownRealm"
-    end
-    return name .. "-" .. realm
-end
+local GetColoredStateLabel = Utils.GetColoredStateLabel
+local FormatMoney = Utils.FormatMoney
+local GetMissionRemainingText = Utils.GetMissionRemainingText
+local GetDebugRemainingText = Utils.GetDebugRemainingText
+local FormatRemainingLabel = Utils.FormatRemainingLabel
+local ResolveItemData = Utils.ResolveItemData
+local ResolveCurrencyData = Utils.ResolveCurrencyData
+local BuildRewardPreview = Utils.BuildRewardPreview
+local BuildRewardPriorityNote = Utils.BuildRewardPriorityNote
+local BuildRewardTooltipData = Utils.BuildRewardTooltipData
+local GetMissionExpansionKey = Utils.GetMissionExpansionKey
+local GetCharacterKey = Utils.GetCharacterKey
+local GetExpansionLabel = Utils.GetExpansionLabel
+local GetRewardLabel = Utils.GetRewardLabel
+local GetMissionPrimaryGroupKey = Utils.GetMissionPrimaryGroupKey
+local MissionAllowedByGroupToggles = Utils.MissionAllowedByGroupToggles
+local ShowRowTooltip = Utils.ShowRowTooltip
+local HideRowTooltip = Utils.HideRowTooltip
+local BuildAggregateRows = SummaryBuilder.BuildAggregateRows
 
 local function GetDashboardConfig()
     if MRT.Config and MRT.Config.GetDashboardConfig then
@@ -352,217 +58,12 @@ local function GetDashboardConfig()
         showStatusColors = true,
         showRewardDetails = true,
         compactList = false,
+        lineHeight = 18,
+        headerStyle = "normal",
+        splitRatio = 50,
+        showMissionHighlight = true,
         fontSize = 13,
     }
-end
-
-local function GetExpansionLabel(expansionKey)
-    if MRT.Config and MRT.Config.Labels and MRT.Config.Labels.Expansion then
-        local label = MRT.Config.Labels.Expansion[expansionKey]
-        if label and label ~= "" then
-            return label
-        end
-    end
-    return string.upper(expansionKey or "unknown")
-end
-
-local function GetRewardLabel(rewardKey)
-    if MRT.Config and MRT.Config.Labels and MRT.Config.Labels.Reward then
-        local label = MRT.Config.Labels.Reward[rewardKey]
-        if label and label ~= "" then
-            return label
-        end
-    end
-    return string.upper(rewardKey or "other")
-end
-
-local function BuildAggregateRows(missionTotal, availableCount, runningCount, readyCount, totalGold, totalAnima, itemTotals, animaItemTotals, currencyTotals, cfg)
-    local rows = {}
-    local function add(text, tooltip)
-        rows[#rows + 1] = { text = text, tooltip = tooltip }
-    end
-
-    add("|cffffcc00Missions-Uebersicht:|r")
-    add("  - gefiltert gesamt: " .. (missionTotal or 0))
-    add("  - verfuegbar: " .. (availableCount or 0))
-    add("  - laeuft: " .. (runningCount or 0))
-    add("  - fertig: " .. (readyCount or 0))
-    add("")
-    if cfg.showGroupGold then
-        add("|cffffcc00Gesamt Gold Mission&WQ:|r " .. FormatMoney(totalGold))
-        add("|cffb0b0b0(WQ aktuell Platzhalter bis WQ-Modul aktiv ist)|r")
-        add("")
-    end
-
-    if cfg.showGroupAnima then
-        add("|cffffcc00Gesamt Anima (Missionen):|r " .. (totalAnima or 0))
-        local animaItems = {}
-        for _, entry in pairs(animaItemTotals) do
-            animaItems[#animaItems + 1] = entry
-        end
-        table.sort(animaItems, function(a, b)
-            if a.quantity ~= b.quantity then return a.quantity > b.quantity end
-            return a.label < b.label
-        end)
-        if #animaItems == 0 then
-            add("  - keine")
-        else
-            add("|cffffcc00Anima-Items gesamt:|r")
-            for _, entry in ipairs(animaItems) do
-                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
-                add(
-                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity .. " (" .. (entry.anima or 0) .. " anima)",
-                    {
-                        itemID = entry.itemID,
-                        itemLink = entry.itemLink,
-                        lines = { entry.label .. " x" .. entry.quantity, "Anima: " .. (entry.anima or 0) }
-                    }
-                )
-            end
-        end
-        add("")
-    end
-
-    if cfg.showGroupItems then
-        add("|cffffcc00Items gesamt:|r")
-    end
-
-    local items = {}
-    for _, entry in pairs(itemTotals) do
-        items[#items + 1] = entry
-    end
-    table.sort(items, function(a, b)
-        if a.quantity ~= b.quantity then return a.quantity > b.quantity end
-        return a.label < b.label
-    end)
-
-    if cfg.showGroupItems then
-        if #items == 0 then
-            add("  - keine")
-        else
-            for _, entry in ipairs(items) do
-                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
-                add(
-                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
-                    {
-                        itemID = entry.itemID,
-                        itemLink = entry.itemLink,
-                        lines = { entry.label .. " x" .. entry.quantity }
-                    }
-                )
-            end
-        end
-        add("")
-    end
-
-    if cfg.showGroupCurrency then
-        add("|cffffcc00Waehrung gesamt:|r")
-    end
-    local currencies = {}
-    for _, entry in pairs(currencyTotals) do
-        currencies[#currencies + 1] = entry
-    end
-    table.sort(currencies, function(a, b)
-        if a.quantity ~= b.quantity then return a.quantity > b.quantity end
-        return a.label < b.label
-    end)
-
-    if cfg.showGroupCurrency then
-        if #currencies == 0 then
-            add("  - keine")
-        else
-            for _, entry in ipairs(currencies) do
-                local iconText = entry.icon and ("|T" .. tostring(entry.icon) .. ":14:14:0:0|t ") or ""
-                add(
-                    "  - " .. iconText .. entry.label .. " x" .. entry.quantity,
-                    {
-                        currencyID = entry.currencyID,
-                        quantity = entry.quantity,
-                        lines = { entry.label .. " x" .. entry.quantity }
-                    }
-                )
-            end
-        end
-    end
-
-    return rows
-end
-
-local function ShowRowTooltip(row)
-    local data = row and row.data
-    if not data or not data.tooltip then
-        return
-    end
-
-    local tooltip = data.tooltip
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-
-    if tooltip.itemLink then
-        GameTooltip:SetHyperlink(tooltip.itemLink)
-    elseif tooltip.itemID then
-        GameTooltip:SetHyperlink("item:" .. tooltip.itemID)
-    elseif tooltip.currencyID and GameTooltip.SetCurrencyByID then
-        GameTooltip:SetCurrencyByID(tooltip.currencyID, tooltip.quantity or 0)
-    else
-        GameTooltip:ClearLines()
-        GameTooltip:AddLine("Belohnung")
-    end
-
-    if tooltip.lines then
-        for _, line in ipairs(tooltip.lines) do
-            GameTooltip:AddLine(line, 1, 1, 1, true)
-        end
-    end
-
-    GameTooltip:Show()
-end
-
-local function HideRowTooltip()
-    GameTooltip:Hide()
-end
-
-local function GetMissionItemGroupFlags(mission)
-    local hasAnimaItem = false
-    local hasRegularItem = false
-    if not mission or type(mission.rewards) ~= "table" then
-        return hasAnimaItem, hasRegularItem
-    end
-
-    if not MRT.Config or not MRT.Config.IsAnimaItem then
-        for _, reward in ipairs(mission.rewards) do
-            if reward.itemID then
-                hasRegularItem = true
-                break
-            end
-        end
-        return hasAnimaItem, hasRegularItem
-    end
-
-    for _, reward in ipairs(mission.rewards) do
-        if reward.itemID then
-            if MRT.Config:IsAnimaItem(reward.itemID) then
-                hasAnimaItem = true
-            else
-                hasRegularItem = true
-            end
-        end
-    end
-
-    return hasAnimaItem, hasRegularItem
-end
-
-local function MissionAllowedByGroupToggles(mission, rewardKey, cfg)
-    if rewardKey == "gold" then
-        return cfg.showGroupGold
-    end
-    if rewardKey == "currency" then
-        return cfg.showGroupCurrency
-    end
-    if rewardKey == "item" then
-        local hasAnimaItem, hasRegularItem = GetMissionItemGroupFlags(mission)
-        return (hasAnimaItem and cfg.showGroupAnima) or (hasRegularItem and cfg.showGroupItems)
-    end
-    return true
 end
 
 local function EnsureListRow(index)
@@ -579,7 +80,7 @@ local function EnsureListRow(index)
 
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
-    row.text:SetWidth(700)
+    row.text:SetWidth(960)
     row.text:SetJustifyH("LEFT")
     row.text:SetJustifyV("TOP")
 
@@ -591,8 +92,14 @@ local function EnsureListRow(index)
 end
 
 local function RenderMissionRows(rows)
+    local cfg = GetDashboardConfig()
+    local lineHeight = tonumber(cfg.lineHeight) or 18
     for i, rowData in ipairs(rows) do
         local row = EnsureListRow(i)
+        row:SetHeight(lineHeight)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -((i - 1) * lineHeight))
+        row:SetPoint("TOPRIGHT", 0, -((i - 1) * lineHeight))
         row.data = rowData
         row.text:SetText(rowData.text or "")
         row:Show()
@@ -603,16 +110,16 @@ local function RenderMissionRows(rows)
         listRows[i]:Hide()
     end
 
-    listContent:SetHeight(math.max(1, (#rows * 18) + 8))
+    listContent:SetHeight(math.max(1, (#rows * lineHeight) + 8))
 end
 
-local function EnsureSummaryRow(index)
-    local row = summaryRows[index]
+local function EnsureMissionSummaryRow(index)
+    local row = missionSummaryRows[index]
     if row then
         return row
     end
 
-    row = CreateFrame("Button", nil, summaryContent)
+    row = CreateFrame("Button", nil, missionSummaryContent)
     row:SetHeight(18)
     row:SetPoint("TOPLEFT", 0, -((index - 1) * 18))
     row:SetPoint("TOPRIGHT", 0, -((index - 1) * 18))
@@ -620,46 +127,140 @@ local function EnsureSummaryRow(index)
 
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
-    row.text:SetWidth(500)
+    row.text:SetWidth(960)
     row.text:SetJustifyH("LEFT")
     row.text:SetJustifyV("TOP")
 
     row:SetScript("OnEnter", ShowRowTooltip)
     row:SetScript("OnLeave", HideRowTooltip)
 
-    summaryRows[index] = row
+    missionSummaryRows[index] = row
     return row
 end
 
-local function RenderSummaryRows(rows)
+local function RenderMissionSummaryRows(rows)
+    local cfg = GetDashboardConfig()
+    local lineHeight = tonumber(cfg.lineHeight) or 18
     for i, rowData in ipairs(rows) do
-        local row = EnsureSummaryRow(i)
+        local row = EnsureMissionSummaryRow(i)
+        row:SetHeight(lineHeight)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -((i - 1) * lineHeight))
+        row:SetPoint("TOPRIGHT", 0, -((i - 1) * lineHeight))
         row.data = rowData
         row.text:SetText(rowData.text or "")
         row:Show()
     end
 
-    for i = #rows + 1, #summaryRows do
-        summaryRows[i].data = nil
-        summaryRows[i]:Hide()
+    for i = #rows + 1, #missionSummaryRows do
+        missionSummaryRows[i].data = nil
+        missionSummaryRows[i]:Hide()
     end
 
-    summaryContent:SetHeight(math.max(1, (#rows * 18) + 8))
+    missionSummaryContent:SetHeight(math.max(1, (#rows * lineHeight) + 8))
+end
+
+local function EnsureWQSummaryRow(index)
+    local row = wqSummaryRows[index]
+    if row then
+        return row
+    end
+
+    row = CreateFrame("Button", nil, wqSummaryContent)
+    row:SetHeight(18)
+    row:SetPoint("TOPLEFT", 0, -((index - 1) * 18))
+    row:SetPoint("TOPRIGHT", 0, -((index - 1) * 18))
+    row:RegisterForClicks("AnyUp")
+
+    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.text:SetPoint("TOPLEFT", 0, 0)
+    row.text:SetWidth(960)
+    row.text:SetJustifyH("LEFT")
+    row.text:SetJustifyV("TOP")
+
+    wqSummaryRows[index] = row
+    return row
+end
+
+local function RenderWQSummaryRows(rows)
+    local cfg = GetDashboardConfig()
+    local lineHeight = tonumber(cfg.lineHeight) or 18
+    for i, rowData in ipairs(rows) do
+        local row = EnsureWQSummaryRow(i)
+        row:SetHeight(lineHeight)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -((i - 1) * lineHeight))
+        row:SetPoint("TOPRIGHT", 0, -((i - 1) * lineHeight))
+        row.data = rowData
+        row.text:SetText(rowData.text or "")
+        row:Show()
+    end
+
+    for i = #rows + 1, #wqSummaryRows do
+        wqSummaryRows[i].data = nil
+        wqSummaryRows[i]:Hide()
+    end
+
+    wqSummaryContent:SetHeight(math.max(1, (#rows * lineHeight) + 8))
+end
+
+local function EnsureWQListRow(index)
+    local row = wqListRows[index]
+    if row then
+        return row
+    end
+
+    row = CreateFrame("Button", nil, wqListContent)
+    row:SetHeight(18)
+    row:SetPoint("TOPLEFT", 0, -((index - 1) * 18))
+    row:SetPoint("TOPRIGHT", 0, -((index - 1) * 18))
+    row:RegisterForClicks("AnyUp")
+
+    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.text:SetPoint("TOPLEFT", 0, 0)
+    row.text:SetWidth(960)
+    row.text:SetJustifyH("LEFT")
+    row.text:SetJustifyV("TOP")
+
+    wqListRows[index] = row
+    return row
+end
+
+local function RenderWQListRows(rows)
+    local cfg = GetDashboardConfig()
+    local lineHeight = tonumber(cfg.lineHeight) or 18
+    for i, rowData in ipairs(rows) do
+        local row = EnsureWQListRow(i)
+        row:SetHeight(lineHeight)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -((i - 1) * lineHeight))
+        row:SetPoint("TOPRIGHT", 0, -((i - 1) * lineHeight))
+        row.data = rowData
+        row.text:SetText(rowData.text or "")
+        row:Show()
+    end
+
+    for i = #rows + 1, #wqListRows do
+        wqListRows[i].data = nil
+        wqListRows[i]:Hide()
+    end
+
+    wqListContent:SetHeight(math.max(1, (#rows * lineHeight) + 8))
 end
 
 local function ApplyDashboardFontSize(fontSize)
     local size = tonumber(fontSize) or 13
     if size < 10 then size = 10 end
     if size > 20 then size = 20 end
+    local cfg = GetDashboardConfig()
+    local headerExtra = (cfg.headerStyle == "emphasis") and 3 or 1
 
     local base = STANDARD_TEXT_FONT
     if lineCharacter then lineCharacter:SetFont(base, size, "") end
-    if lineAvailable then lineAvailable:SetFont(base, size, "") end
-    if lineReady then lineReady:SetFont(base, size, "") end
-    if lineRunning then lineRunning:SetFont(base, size, "") end
-    if lineWQ then lineWQ:SetFont(base, size, "") end
-    if listTitle then listTitle:SetFont(base, size + 1, "") end
-    if summaryTitle then summaryTitle:SetFont(base, size + 1, "") end
+    if listTitle then listTitle:SetFont(base, size + headerExtra, "") end
+    if missionSummaryTitle then missionSummaryTitle:SetFont(base, size + headerExtra, "") end
+    if wqSummaryTitle then wqSummaryTitle:SetFont(base, size + headerExtra, "") end
+    if wqListTitle then wqListTitle:SetFont(base, size + headerExtra, "") end
 
     for _, row in ipairs(listRows) do
         if row and row.text then
@@ -667,14 +268,97 @@ local function ApplyDashboardFontSize(fontSize)
         end
     end
 
-    for _, row in ipairs(summaryRows) do
+    for _, row in ipairs(missionSummaryRows) do
         if row and row.text then
             row.text:SetFont(base, math.max(10, size - 1), "")
         end
     end
 
-    if fontSizeLabel then
-        fontSizeLabel:SetText("Schrift: " .. size)
+    for _, row in ipairs(wqSummaryRows) do
+        if row and row.text then
+            row.text:SetFont(base, math.max(10, size - 1), "")
+        end
+    end
+
+    for _, row in ipairs(wqListRows) do
+        if row and row.text then
+            row.text:SetFont(base, math.max(10, size - 1), "")
+        end
+    end
+
+end
+
+local function ApplyDashboardLayout(cfg)
+    if not frame then
+        return
+    end
+    local ratio = tonumber(cfg.splitRatio) or 50
+    if ratio < 35 then ratio = 35 end
+    if ratio > 65 then ratio = 65 end
+
+    local frameW = 1560
+    local leftW = math.floor((frameW - 34) * (ratio / 100))
+    local rightW = (frameW - 34) - leftW
+    local leftX = 14
+    local rightX = 14 + leftW + 22
+    local topY = -88
+    local topH = 220
+    local bottomY = -352
+    local bottomH = 460
+
+    if missionSummaryTitle then
+        missionSummaryTitle:ClearAllPoints()
+        missionSummaryTitle:SetPoint("TOPLEFT", leftX + 2, -66)
+    end
+    if wqSummaryTitle then
+        wqSummaryTitle:ClearAllPoints()
+        wqSummaryTitle:SetPoint("TOPLEFT", rightX + 2, -66)
+    end
+    if listTitle then
+        listTitle:ClearAllPoints()
+        listTitle:SetPoint("TOPLEFT", leftX + 2, -330)
+    end
+    if wqListTitle then
+        wqListTitle:ClearAllPoints()
+        wqListTitle:SetPoint("TOPLEFT", rightX + 2, -330)
+    end
+
+    if missionSummaryScroll then
+        missionSummaryScroll:ClearAllPoints()
+        missionSummaryScroll:SetPoint("TOPLEFT", leftX, topY)
+        missionSummaryScroll:SetSize(leftW, topH)
+    end
+    if wqSummaryScroll then
+        wqSummaryScroll:ClearAllPoints()
+        wqSummaryScroll:SetPoint("TOPLEFT", rightX, topY)
+        wqSummaryScroll:SetSize(rightW, topH)
+    end
+    if listScrollFrame then
+        listScrollFrame:ClearAllPoints()
+        listScrollFrame:SetPoint("TOPLEFT", leftX, bottomY)
+        listScrollFrame:SetSize(leftW, bottomH)
+    end
+    if wqListScroll then
+        wqListScroll:ClearAllPoints()
+        wqListScroll:SetPoint("TOPLEFT", rightX, bottomY)
+        wqListScroll:SetSize(rightW, bottomH)
+    end
+
+    if missionSummaryContent then missionSummaryContent:SetSize(math.max(520, leftW - 40), topH) end
+    if wqSummaryContent then wqSummaryContent:SetSize(math.max(520, rightW - 40), topH) end
+    if listContent then listContent:SetSize(math.max(520, leftW - 40), bottomH) end
+    if wqListContent then wqListContent:SetSize(math.max(520, rightW - 40), bottomH) end
+
+    if hLine then
+        hLine:ClearAllPoints()
+        hLine:SetPoint("LEFT", 12, 0)
+        hLine:SetPoint("RIGHT", -12, 0)
+        hLine:SetPoint("TOP", 0, -320)
+    end
+    if vLine then
+        vLine:ClearAllPoints()
+        vLine:SetPoint("TOPLEFT", frame, "TOPLEFT", rightX - 6, -42)
+        vLine:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", rightX - 6, 8)
     end
 end
 
@@ -690,7 +374,6 @@ local function RefreshDashboard()
     summary = summary or { available = 0, ready = 0, running = 0, wq = 0 }
 
     local dashboardCfg = GetDashboardConfig()
-    local filterCfg = MRT.FilterConfig and MRT.FilterConfig.GetActive and MRT.FilterConfig:GetActive() or {}
     local showSortDebug = dashboardCfg.showSortDebug
     local showExpansionHeaders = dashboardCfg.showExpansionHeaders
     local showRewardHeaders = dashboardCfg.showRewardHeaders
@@ -704,40 +387,18 @@ local function RefreshDashboard()
     local showGroupAnima = dashboardCfg.showGroupAnima
     local fontSize = dashboardCfg.fontSize or 13
 
-    if optionSortDebug then optionSortDebug:SetChecked(showSortDebug) end
-    if optionExpansionHeaders then optionExpansionHeaders:SetChecked(showExpansionHeaders) end
-    if optionRewardHeaders then optionRewardHeaders:SetChecked(showRewardHeaders) end
-    if optionStatusColors then optionStatusColors:SetChecked(showStatusColors) end
-    if optionRewardDetails then optionRewardDetails:SetChecked(showRewardDetails) end
-    if optionCompactList then optionCompactList:SetChecked(compactList) end
-    if optionDebugForceRemaining then optionDebugForceRemaining:SetChecked(debugForceRemaining) end
-    if optionGroupGold then optionGroupGold:SetChecked(showGroupGold) end
-    if optionGroupCurrency then optionGroupCurrency:SetChecked(showGroupCurrency) end
-    if optionGroupItems then optionGroupItems:SetChecked(showGroupItems) end
-    if optionGroupAnima then optionGroupAnima:SetChecked(showGroupAnima) end
-    if optionAnimaBypassFilter then optionAnimaBypassFilter:SetChecked(filterCfg.AnimaBypassFilter and true or false) end
+    ApplyDashboardLayout(dashboardCfg)
     ApplyDashboardFontSize(fontSize)
 
     lineCharacter:SetText("Character: " .. GetCharacterKey())
-    if showStatusColors then
-        lineAvailable:SetText("|cffffff00Mission verfuegbar:|r " .. (summary.available or 0))
-        lineReady:SetText("|cff00ff00Mission fertig:|r " .. (summary.ready or 0))
-        lineRunning:SetText("|cff33aaffMission laeuft:|r " .. (summary.running or 0))
-        lineWQ:SetText("|cffffff00WQ verfuegbar:|r " .. (summary.wq or 0))
-    else
-        lineAvailable:SetText("Mission verfuegbar: " .. (summary.available or 0))
-        lineReady:SetText("Mission fertig: " .. (summary.ready or 0))
-        lineRunning:SetText("Mission laeuft: " .. (summary.running or 0))
-        lineWQ:SetText("WQ verfuegbar: " .. (summary.wq or 0))
-    end
-
     local entries = {}
     local charData = MyRewardTrackerCharDB
     local shown = 0
     local totalGold = 0
+    local totalGoldActive = 0
     local totalAnima = 0
+    local totalAnimaActive = 0
     local itemTotals = {}
-    local animaItemTotals = {}
     local currencyTotals = {}
 
     if charData and charData.missionTable and MRT.FilterEngine then
@@ -745,12 +406,13 @@ local function RefreshDashboard()
             if MRT.FilterEngine:CheckMission(missionID, mission) then
                 local state = MRT.Config and MRT.Config.GetMissionState and MRT.Config:GetMissionState(mission) or "available"
                 local expansionKey = GetMissionExpansionKey(mission)
-                local rewardKey = MRT.Config and MRT.Config.GetMissionRewardKey and MRT.Config:GetMissionRewardKey(mission) or "other"
-                local visibleByGroup = MissionAllowedByGroupToggles(mission, rewardKey, dashboardCfg)
+                local rewardKey = GetMissionPrimaryGroupKey(mission)
+                local visibleByGroup = MissionAllowedByGroupToggles(rewardKey, dashboardCfg)
                 if not visibleByGroup then
                     -- Gruppe ausgeblendet (Gold/Waehrung/Items/Anima).
                 else
                     shown = shown + 1
+                    local isActiveState = (state == "running" or state == "ready")
                     local expansionSort = MRT.Config and MRT.Config.GetExpansionSortIndex and MRT.Config:GetExpansionSortIndex(expansionKey) or 9999
                     local rewardSort = MRT.Config and MRT.Config.GetRewardSortIndex and MRT.Config:GetRewardSortIndex(rewardKey) or 9999
 
@@ -759,33 +421,40 @@ local function RefreshDashboard()
                             local qty = reward.quantity or 0
                             if reward.currencyID == 0 then
                                 totalGold = totalGold + qty
-                        elseif reward.itemID then
-                            local itemLink, itemName, itemIcon = ResolveItemData(reward)
-                            local key = reward.itemID
-                            local label = itemLink or itemName or ("Item:" .. reward.itemID)
-                            local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
-                                row.quantity = row.quantity + qty
-                                if not row.icon and itemIcon then row.icon = itemIcon end
-                                if not row.itemLink and itemLink then row.itemLink = itemLink end
-                                itemTotals[key] = row
-                                if MRT.Config and MRT.Config.GetAnimaValue then
-                                local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
-                                if animaValue > 0 then
-                                    totalAnima = totalAnima + (animaValue * qty)
-                                    local animaRow = animaItemTotals[key] or { label = label, quantity = 0, anima = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
-                                    animaRow.quantity = animaRow.quantity + qty
-                                    animaRow.anima = animaRow.anima + (animaValue * qty)
-                                    if not animaRow.icon and itemIcon then animaRow.icon = itemIcon end
-                                    if not animaRow.itemLink and itemLink then animaRow.itemLink = itemLink end
-                                    animaItemTotals[key] = animaRow
+                                if isActiveState then
+                                    totalGoldActive = totalGoldActive + qty
                                 end
-                            end
-                        elseif reward.currencyID then
+                            elseif reward.itemID then
+                                local itemLink, itemName, itemIcon = ResolveItemData(reward)
+                                local key = reward.itemID
+                                local label = itemLink or itemName or ("Item:" .. reward.itemID)
+                                local isAnima = MRT.Config and MRT.Config.IsAnimaItem and MRT.Config:IsAnimaItem(reward.itemID)
+                                if not isAnima then
+                                    local row = itemTotals[key] or { label = label, quantity = 0, icon = itemIcon, itemID = reward.itemID, itemLink = itemLink }
+                                    row.quantity = row.quantity + qty
+                                    if not row.icon and itemIcon then row.icon = itemIcon end
+                                    if not row.itemLink and itemLink then row.itemLink = itemLink end
+                                    itemTotals[key] = row
+                                end
+                                if MRT.Config and MRT.Config.GetAnimaValue then
+                                    local animaValue = MRT.Config:GetAnimaValue(reward.itemID)
+                                    if animaValue > 0 then
+                                        local gain = (animaValue * qty)
+                                        totalAnima = totalAnima + gain
+                                        if isActiveState then
+                                            totalAnimaActive = totalAnimaActive + gain
+                                        end
+                                    end
+                                end
+                            elseif reward.currencyID then
                                 local currencyName, currencyIcon = ResolveCurrencyData(reward)
                                 local key = reward.currencyID
                                 local label = currencyName or ("Currency:" .. reward.currencyID)
-                                local row = currencyTotals[key] or { label = label, quantity = 0, icon = currencyIcon, currencyID = reward.currencyID }
-                                row.quantity = row.quantity + qty
+                                local row = currencyTotals[key] or { label = label, total = 0, active = 0, icon = currencyIcon, currencyID = reward.currencyID }
+                                row.total = row.total + qty
+                                if isActiveState then
+                                    row.active = row.active + qty
+                                end
                                 if not row.icon and currencyIcon then row.icon = currencyIcon end
                                 currencyTotals[key] = row
                             end
@@ -836,20 +505,34 @@ local function RefreshDashboard()
             rows[#rows + 1] = { text = "|cffb0b0b0-- " .. GetRewardLabel(entry.rewardKey) .. " --|r" }
         end
 
-        local line = "[" .. entry.missionID .. "] " .. entry.missionName .. " | " .. GetColoredStateLabel(entry.state, showStatusColors)
-        local remainingLabel = FormatRemainingLabel(entry.remainingText)
-        if remainingLabel then
-            line = line .. " | " .. remainingLabel
+        local statusColorOpen = ""
+        local statusColorClose = ""
+        if showStatusColors then
+            if entry.state == "ready" then
+                statusColorOpen = "|cff00ff00"
+            elseif entry.state == "running" then
+                statusColorOpen = "|cff33aaff"
+            else
+                statusColorOpen = "|cffffff00"
+            end
+            statusColorClose = "|r"
         end
-        if showRewardDetails and entry.rewardPreview then
-            line = line .. " | " .. entry.rewardPreview
+
+        local statusText = "verfuegbar"
+        if entry.state == "ready" then
+            statusText = "fertig"
+        elseif entry.state == "running" then
+            if entry.remainingText and entry.remainingText ~= "" then
+                statusText = "Rest: " .. entry.remainingText
+            else
+                statusText = "Rest: ?"
+            end
         end
-        if showRewardDetails and entry.rewardPriorityNote then
-            line = line .. " | |cffffcc00" .. entry.rewardPriorityNote .. "|r"
-        end
-        if showSortDebug then
-            line = line .. " | " .. entry.expansionKey .. " | " .. entry.rewardKey
-        end
+
+        local rewardText = entry.rewardPreview or "keine Belohnung"
+        local missionNameText = statusColorOpen .. entry.missionName .. statusColorClose
+        local statusDisplay = statusColorOpen .. statusText .. statusColorClose
+        local line = missionNameText .. " - " .. statusDisplay .. " - " .. rewardText
 
         rows[#rows + 1] = {
             text = line,
@@ -860,31 +543,48 @@ local function RefreshDashboard()
         lastRewardKey = entry.rewardKey
     end
 
-    listTitle:SetText("Gefilterte Missionen: " .. shown)
+    listTitle:SetText("Missionen")
     RenderMissionRows(rows)
-    local summaryRowsData = BuildAggregateRows(shown, summary.available or 0, summary.running or 0, summary.ready or 0, totalGold, totalAnima, itemTotals, animaItemTotals, currencyTotals, dashboardCfg)
-    RenderSummaryRows(summaryRowsData)
+    local summaryRowsData = BuildAggregateRows(totalGoldActive, totalGold, totalAnimaActive, totalAnima, currencyTotals, dashboardCfg)
+    RenderMissionSummaryRows(summaryRowsData)
+
+    local wqSummaryRowsData = {
+        { text = "|cffffcc00WQ-Zusammenfassung:|r" },
+        { text = "  - verfuegbar: " .. tostring(summary.wq or 0) },
+        { text = "  - Gesamt Gold WQ: 0g 0s 0c" },
+        { text = "  - Gesamt Anima WQ: 0" },
+        { text = "|cffb0b0b0(Platzhalter bis WQ-Modul aktiv ist)|r" },
+        { text = "" },
+        { text = "|cff00ccffHighlight-Bereich (reserviert)|r" },
+        { text = "|cff00ccfffuer spaetere spezielle Hinweise in WQ.|r" },
+    }
+    RenderWQSummaryRows(wqSummaryRowsData)
+
+    local wqListRowsData = {
+        { text = "|cffffcc00-- GOLD WQ --|r" },
+        { text = "  - Zone (mapID) 1" },
+        { text = "  - Zone (mapID) 2" },
+        { text = "  ..." },
+        { text = "|cffffcc00-- GEGENSTANDS WQ --|r" },
+        { text = "  - Zone (mapID) 1" },
+        { text = "  - Zone (mapID) 2" },
+        { text = "  ..." },
+        { text = "|cffffcc00-- ANIMA WQ --|r" },
+        { text = "  - Zone (mapID) 1" },
+        { text = "  - Zone (mapID) 2" },
+        { text = "  ..." },
+        { text = "|cffffcc00-- WAEHRUNGS WQ --|r" },
+        { text = "  - Zone (mapID) 1" },
+        { text = "  - Zone (mapID) 2" },
+        { text = "  ..." },
+    }
+    RenderWQListRows(wqListRowsData)
     ApplyDashboardFontSize(fontSize)
-end
-
-local function CreateOptionToggle(parent, anchorPoint, x, y, labelText, initialValue, onChanged)
-    local btn = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    btn:SetPoint(anchorPoint, x, y)
-    btn:SetChecked(initialValue and true or false)
-    btn:SetScript("OnClick", function(self)
-        onChanged(self:GetChecked() and true or false)
-    end)
-
-    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", btn, "RIGHT", 2, 1)
-    label:SetText(labelText)
-
-    return btn
 end
 
 local function CreateDashboard()
     frame = CreateFrame("Frame", "MRT_DashboardFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(1320, 620)
+    frame:SetSize(1560, 860)
     frame:SetPoint("CENTER", 0, 60)
     frame:SetFrameStrata("DIALOG")
     frame:SetBackdrop({
@@ -911,47 +611,70 @@ local function CreateDashboard()
     lineCharacter:SetPoint("TOPLEFT", 16, -42)
     lineCharacter:SetJustifyH("LEFT")
 
-    lineAvailable = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    lineAvailable:SetPoint("TOPLEFT", 16, -66)
-    lineAvailable:SetJustifyH("LEFT")
+    missionSummaryTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    missionSummaryTitle:SetPoint("TOPLEFT", 16, -66)
+    missionSummaryTitle:SetJustifyH("LEFT")
+    missionSummaryTitle:SetText("Zusammenfassung Missionen")
 
-    lineReady = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    lineReady:SetPoint("TOPLEFT", 16, -88)
-    lineReady:SetJustifyH("LEFT")
-
-    lineRunning = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    lineRunning:SetPoint("TOPLEFT", 16, -110)
-    lineRunning:SetJustifyH("LEFT")
-
-    lineWQ = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    lineWQ:SetPoint("TOPLEFT", 16, -132)
-    lineWQ:SetJustifyH("LEFT")
+    wqSummaryTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    wqSummaryTitle:SetPoint("TOPLEFT", 790, -66)
+    wqSummaryTitle:SetJustifyH("LEFT")
+    wqSummaryTitle:SetText("Zusammenfassung WorldQuest")
 
     listTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    listTitle:SetPoint("TOPLEFT", 16, -160)
+    listTitle:SetPoint("TOPLEFT", 16, -330)
     listTitle:SetJustifyH("LEFT")
-    listTitle:SetText("Gefilterte Missionen: 0")
+    listTitle:SetText("Missionen")
 
-    summaryTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    summaryTitle:SetPoint("TOPLEFT", 760, -42)
-    summaryTitle:SetJustifyH("LEFT")
-    summaryTitle:SetText("Zusammenfassung")
+    wqListTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    wqListTitle:SetPoint("TOPLEFT", 790, -330)
+    wqListTitle:SetJustifyH("LEFT")
+    wqListTitle:SetText("WorldQuest")
 
-    local summaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    summaryScroll:SetPoint("TOPLEFT", 758, -64)
-    summaryScroll:SetPoint("BOTTOMRIGHT", -34, 84)
+    missionSummaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    missionSummaryScroll:SetPoint("TOPLEFT", 14, -88)
+    missionSummaryScroll:SetSize(740, 220)
 
-    summaryContent = CreateFrame("Frame", nil, summaryScroll)
-    summaryContent:SetSize(500, 380)
-    summaryScroll:SetScrollChild(summaryContent)
+    missionSummaryContent = CreateFrame("Frame", nil, missionSummaryScroll)
+    missionSummaryContent:SetSize(700, 220)
+    missionSummaryScroll:SetScrollChild(missionSummaryContent)
+
+    wqSummaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    wqSummaryScroll:SetPoint("TOPLEFT", 788, -88)
+    wqSummaryScroll:SetSize(740, 220)
+
+    wqSummaryContent = CreateFrame("Frame", nil, wqSummaryScroll)
+    wqSummaryContent:SetSize(700, 220)
+    wqSummaryScroll:SetScrollChild(wqSummaryContent)
 
     listScrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    listScrollFrame:SetPoint("TOPLEFT", 14, -182)
-    listScrollFrame:SetPoint("BOTTOMRIGHT", -560, 84)
+    listScrollFrame:SetPoint("TOPLEFT", 14, -352)
+    listScrollFrame:SetSize(740, 460)
 
     listContent = CreateFrame("Frame", nil, listScrollFrame)
-    listContent:SetSize(700, 380)
+    listContent:SetSize(700, 460)
     listScrollFrame:SetScrollChild(listContent)
+
+    wqListScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    wqListScroll:SetPoint("TOPLEFT", 788, -352)
+    wqListScroll:SetSize(740, 460)
+
+    wqListContent = CreateFrame("Frame", nil, wqListScroll)
+    wqListContent:SetSize(700, 460)
+    wqListScroll:SetScrollChild(wqListContent)
+
+    hLine = frame:CreateTexture(nil, "ARTWORK")
+    hLine:SetColorTexture(0.8, 0, 0, 0.9)
+    hLine:SetHeight(2)
+    hLine:SetPoint("LEFT", 12, 0)
+    hLine:SetPoint("RIGHT", -12, 0)
+    hLine:SetPoint("TOP", 0, -320)
+
+    vLine = frame:CreateTexture(nil, "ARTWORK")
+    vLine:SetColorTexture(0.8, 0, 0, 0.9)
+    vLine:SetWidth(2)
+    vLine:SetPoint("TOP", 0, -42)
+    vLine:SetPoint("BOTTOM", 0, 8)
 
     local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     refreshButton:SetSize(100, 24)
@@ -961,102 +684,15 @@ local function CreateDashboard()
         RefreshDashboard()
     end)
 
-    local cfg = GetDashboardConfig()
-
-    optionSortDebug = CreateOptionToggle(frame, "BOTTOMLEFT", 130, 16, "Sort-Debug anzeigen", cfg.showSortDebug, function(checked)
-        cfg.showSortDebug = checked
-        RefreshDashboard()
-    end)
-
-    optionExpansionHeaders = CreateOptionToggle(frame, "BOTTOMLEFT", 300, 16, "Erweiterungs-Header", cfg.showExpansionHeaders, function(checked)
-        cfg.showExpansionHeaders = checked
-        RefreshDashboard()
-    end)
-
-    optionRewardHeaders = CreateOptionToggle(frame, "BOTTOMLEFT", 130, 40, "Belohnungs-Header", cfg.showRewardHeaders, function(checked)
-        cfg.showRewardHeaders = checked
-        RefreshDashboard()
-    end)
-
-    optionStatusColors = CreateOptionToggle(frame, "BOTTOMLEFT", 300, 40, "Statusfarben", cfg.showStatusColors, function(checked)
-        cfg.showStatusColors = checked
-        RefreshDashboard()
-    end)
-
-    optionRewardDetails = CreateOptionToggle(frame, "BOTTOMLEFT", 130, 64, "Reward-Details in Liste", cfg.showRewardDetails, function(checked)
-        cfg.showRewardDetails = checked
-        RefreshDashboard()
-    end)
-
-    optionCompactList = CreateOptionToggle(frame, "BOTTOMLEFT", 300, 64, "Kompakte Liste", cfg.compactList, function(checked)
-        cfg.compactList = checked
-        RefreshDashboard()
-    end)
-
-    optionDebugForceRemaining = CreateOptionToggle(frame, "BOTTOMLEFT", 460, 40, "Restzeit-Test", cfg.debugForceRemaining, function(checked)
-        cfg.debugForceRemaining = checked
-        RefreshDashboard()
-    end)
-
-    optionGroupGold = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 16, "Gold", cfg.showGroupGold, function(checked)
-        cfg.showGroupGold = checked
-        RefreshDashboard()
-    end)
-
-    optionGroupCurrency = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 40, "Waehrung", cfg.showGroupCurrency, function(checked)
-        cfg.showGroupCurrency = checked
-        RefreshDashboard()
-    end)
-
-    optionGroupItems = CreateOptionToggle(frame, "BOTTOMLEFT", 620, 64, "Items", cfg.showGroupItems, function(checked)
-        cfg.showGroupItems = checked
-        RefreshDashboard()
-    end)
-
-    optionGroupAnima = CreateOptionToggle(frame, "BOTTOMLEFT", 760, 16, "Anima", cfg.showGroupAnima, function(checked)
-        cfg.showGroupAnima = checked
-        RefreshDashboard()
-    end)
-
-    optionAnimaBypassFilter = CreateOptionToggle(frame, "BOTTOMLEFT", 760, 40, "Anima Filter-Bypass", false, function(checked)
-        local fcfg = MRT.FilterConfig and MRT.FilterConfig.GetActive and MRT.FilterConfig:GetActive()
-        if fcfg then
-            fcfg.AnimaBypassFilter = checked and true or false
-        end
-        if MRT.Scanner and MRT.Scanner.SyncTrackedFromCharacter then
-            MRT.Scanner:SyncTrackedFromCharacter()
-        end
-        if MRT.Notifier and MRT.Notifier.CheckMissions then
-            MRT.Notifier:CheckMissions(false)
-        end
-        RefreshDashboard()
-    end)
-
-    local fontDown = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    fontDown:SetSize(28, 22)
-    fontDown:SetPoint("BOTTOMLEFT", 460, 14)
-    fontDown:SetText("A-")
-    fontDown:SetScript("OnClick", function()
-        if cfg.fontSize > 10 then
-            cfg.fontSize = cfg.fontSize - 1
-            RefreshDashboard()
+    local configButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    configButton:SetSize(100, 24)
+    configButton:SetPoint("LEFT", refreshButton, "RIGHT", 10, 0)
+    configButton:SetText("Config")
+    configButton:SetScript("OnClick", function()
+        if MRT.ConfigDebug and MRT.ConfigDebug.Toggle then
+            MRT.ConfigDebug.Toggle()
         end
     end)
-
-    local fontUp = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    fontUp:SetSize(28, 22)
-    fontUp:SetPoint("LEFT", fontDown, "RIGHT", 4, 0)
-    fontUp:SetText("A+")
-    fontUp:SetScript("OnClick", function()
-        if cfg.fontSize < 20 then
-            cfg.fontSize = cfg.fontSize + 1
-            RefreshDashboard()
-        end
-    end)
-
-    fontSizeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    fontSizeLabel:SetPoint("LEFT", fontUp, "RIGHT", 8, 0)
-    fontSizeLabel:SetText("Schrift: " .. tostring(cfg.fontSize or 13))
 
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     closeButton:SetPoint("TOPRIGHT", 0, 0)

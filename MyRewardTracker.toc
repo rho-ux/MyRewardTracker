@@ -17,12 +17,21 @@ Modules\Scanner_Controller.lua
 Modules\Storage.lua
 Modules\FilterConfig.lua
 Modules\FilterEngine.lua
+Modules\Notifier_Config.lua
+Modules\Notifier_Summary.lua
+Modules\Notifier_Popup.lua
 Modules\Notifier.lua
 
 
 UI\UI_MainFrame.lua
+UI\Debug\UI_Debug_Text.lua
+UI\Dashboard\UI_Dashboard_Utils.lua
+UI\Dashboard\UI_Dashboard_Summary.lua
+UI\Dashboard\UI_MultiDebug_Utils.lua
+UI\Dashboard\UI_MultiDebug_Data.lua
 UI\UI_Dashboard.lua
 UI\UI_MultiDebug.lua
+UI\UI_ConfigDebug.lua
 UI\UI_Debug.lua
 
 

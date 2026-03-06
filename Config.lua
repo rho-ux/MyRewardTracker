@@ -9,7 +9,7 @@ MRT.Config.CurrencyFilters = {}
 
 MRT.Config.Sorting = MRT.Config.Sorting or {
     ExpansionOrder = { "wod", "legion", "bfa", "sl", "df", "tww", "unknown" },
-    RewardOrder = { "item", "currency", "gold", "other" },
+    RewardOrder = { "anima", "item", "currency", "gold", "other" },
     CharacterOrder = {
         "Gehkel-Khaz'goroth",
         "Tildal-Blackhand",
@@ -44,6 +44,7 @@ MRT.Config.Labels.Expansion = MRT.Config.Labels.Expansion or {
 }
 
 MRT.Config.Labels.Reward = MRT.Config.Labels.Reward or {
+    anima = "ANIMA",
     item = "GEGENSTAENDE",
     currency = "WAEHRUNG",
     gold = "GOLD",
@@ -124,13 +125,18 @@ function MRT.Config:GetMissionRewardKey(mission)
         return "other"
     end
 
+    local hasAnima = false
     local hasItem = false
     local hasCurrency = false
     local hasGold = false
 
     for _, reward in ipairs(mission.rewards) do
         if reward.itemID then
-            hasItem = true
+            if self.IsAnimaItem and self:IsAnimaItem(reward.itemID) then
+                hasAnima = true
+            else
+                hasItem = true
+            end
         elseif reward.currencyID == 0 then
             hasGold = true
         elseif reward.currencyID then
@@ -138,6 +144,9 @@ function MRT.Config:GetMissionRewardKey(mission)
         end
     end
 
+    if hasAnima then
+        return "anima"
+    end
     if hasItem then
         return "item"
     end
@@ -251,6 +260,36 @@ function MRT.Config:GetDashboardConfig()
     end
     if type(cfg.multiShowAnima) ~= "boolean" then
         cfg.multiShowAnima = true
+    end
+    if type(cfg.multiDetailLong) ~= "boolean" then
+        cfg.multiDetailLong = true
+    end
+    if type(cfg.lineHeight) ~= "number" then
+        cfg.lineHeight = 18
+    end
+    if cfg.lineHeight < 16 then
+        cfg.lineHeight = 16
+    end
+    if cfg.lineHeight > 28 then
+        cfg.lineHeight = 28
+    end
+    if type(cfg.headerStyle) ~= "string" then
+        cfg.headerStyle = "normal"
+    end
+    if cfg.headerStyle ~= "normal" and cfg.headerStyle ~= "emphasis" then
+        cfg.headerStyle = "normal"
+    end
+    if type(cfg.splitRatio) ~= "number" then
+        cfg.splitRatio = 50
+    end
+    if cfg.splitRatio < 35 then
+        cfg.splitRatio = 35
+    end
+    if cfg.splitRatio > 65 then
+        cfg.splitRatio = 65
+    end
+    if type(cfg.showMissionHighlight) ~= "boolean" then
+        cfg.showMissionHighlight = true
     end
     if type(cfg.fontSize) ~= "number" then
         cfg.fontSize = 13
