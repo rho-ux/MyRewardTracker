@@ -37,9 +37,9 @@ MRT.Config.Labels.Expansion = MRT.Config.Labels.Expansion or {
     wod = "WOD",
     legion = "LEGION",
     bfa = "BFA",
-    sl = "SCHATTENLANDE",
-    df = "DRAGONFLIGHT",
-    tww = "THE WAR WITHIN",
+    sl = "SL",
+    df = "DF",
+    tww = "TWW",
     unknown = "UNBEKANNT",
 }
 

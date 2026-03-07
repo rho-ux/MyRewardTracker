@@ -47,6 +47,29 @@ local ShowRowTooltip = Utils.ShowRowTooltip
 local HideRowTooltip = Utils.HideRowTooltip
 local BuildAggregateRows = SummaryBuilder.BuildAggregateRows
 
+local function HideScrollBar(scrollFrame)
+    if not scrollFrame then return end
+    local sb = scrollFrame.ScrollBar
+    if sb then
+        sb:Hide()
+        sb.Show = function() end
+    end
+end
+
+local function EnableWheelScroll(scrollFrame, step)
+    if not scrollFrame then return end
+    local delta = step or 24
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, d)
+        local current = self:GetVerticalScroll() or 0
+        local _, maxV = self:GetVerticalScrollRange()
+        local nextV = current - (d * delta)
+        if nextV < 0 then nextV = 0 end
+        if maxV and nextV > maxV then nextV = maxV end
+        self:SetVerticalScroll(nextV)
+    end)
+end
+
 local function GetDashboardConfig()
     if MRT.Config and MRT.Config.GetDashboardConfig then
         return MRT.Config:GetDashboardConfig()
@@ -629,6 +652,8 @@ local function CreateDashboard()
     missionSummaryContent = CreateFrame("Frame", nil, missionSummaryScroll)
     missionSummaryContent:SetSize(700, 236)
     missionSummaryScroll:SetScrollChild(missionSummaryContent)
+    HideScrollBar(missionSummaryScroll)
+    EnableWheelScroll(missionSummaryScroll, 24)
 
     wqSummaryScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     wqSummaryScroll:SetPoint("TOPLEFT", 788, -92)
@@ -637,6 +662,8 @@ local function CreateDashboard()
     wqSummaryContent = CreateFrame("Frame", nil, wqSummaryScroll)
     wqSummaryContent:SetSize(700, 236)
     wqSummaryScroll:SetScrollChild(wqSummaryContent)
+    HideScrollBar(wqSummaryScroll)
+    EnableWheelScroll(wqSummaryScroll, 24)
 
     listScrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     listScrollFrame:SetPoint("TOPLEFT", 14, -376)
@@ -645,6 +672,8 @@ local function CreateDashboard()
     listContent = CreateFrame("Frame", nil, listScrollFrame)
     listContent:SetSize(700, 460)
     listScrollFrame:SetScrollChild(listContent)
+    HideScrollBar(listScrollFrame)
+    EnableWheelScroll(listScrollFrame, 28)
 
     wqListScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     wqListScroll:SetPoint("TOPLEFT", 788, -376)
@@ -653,23 +682,28 @@ local function CreateDashboard()
     wqListContent = CreateFrame("Frame", nil, wqListScroll)
     wqListContent:SetSize(700, 460)
     wqListScroll:SetScrollChild(wqListContent)
+    HideScrollBar(wqListScroll)
+    EnableWheelScroll(wqListScroll, 28)
 
     hLine = frame:CreateTexture(nil, "ARTWORK")
-    hLine:SetColorTexture(0.8, 0, 0, 0.9)
+    hLine:SetColorTexture(0, 0, 0, 0)
     hLine:SetHeight(2)
     hLine:SetPoint("LEFT", 12, 0)
     hLine:SetPoint("RIGHT", -12, 0)
     hLine:SetPoint("TOP", 0, -344)
 
     vLine = frame:CreateTexture(nil, "ARTWORK")
-    vLine:SetColorTexture(0.8, 0, 0, 0.9)
+    vLine:SetColorTexture(0, 0, 0, 0)
     vLine:SetWidth(2)
     vLine:SetPoint("TOP", 0, -64)
     vLine:SetPoint("BOTTOM", 0, 8)
 
+    local buttonY = 16
+    local buttonGap = 12
+
     local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     refreshButton:SetSize(100, 24)
-    refreshButton:SetPoint("BOTTOMLEFT", 14, 14)
+    refreshButton:SetPoint("BOTTOMLEFT", 16, buttonY)
     refreshButton:SetText("Refresh")
     refreshButton:SetScript("OnClick", function()
         RefreshDashboard()
@@ -677,7 +711,7 @@ local function CreateDashboard()
 
     local configButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     configButton:SetSize(100, 24)
-    configButton:SetPoint("LEFT", refreshButton, "RIGHT", 10, 0)
+    configButton:SetPoint("LEFT", refreshButton, "RIGHT", buttonGap, 0)
     configButton:SetText("Config")
     configButton:SetScript("OnClick", function()
         if MRT.ConfigDebug and MRT.ConfigDebug.Toggle then
@@ -687,7 +721,7 @@ local function CreateDashboard()
 
     local switchButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     switchButton:SetSize(100, 24)
-    switchButton:SetPoint("LEFT", configButton, "RIGHT", 10, 0)
+    switchButton:SetPoint("LEFT", configButton, "RIGHT", buttonGap, 0)
     switchButton:SetText("Multi-Char")
     switchButton:SetScript("OnClick", function()
         Dashboard:Hide()

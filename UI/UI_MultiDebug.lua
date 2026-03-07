@@ -561,15 +561,18 @@ local function CreateUI()
     EnableWheelScroll(highlightScroll, 24)
     EnableWheelScroll(listScroll, 28)
 
+    local buttonY = 16
+    local buttonGap = 12
+
     local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     refreshButton:SetSize(100, 24)
-    refreshButton:SetPoint("BOTTOMLEFT", 14, 14)
+    refreshButton:SetPoint("BOTTOMLEFT", 16, buttonY)
     refreshButton:SetText("Refresh")
     refreshButton:SetScript("OnClick", function() Refresh() end)
 
     local configButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     configButton:SetSize(100, 24)
-    configButton:SetPoint("LEFT", refreshButton, "RIGHT", 10, 0)
+    configButton:SetPoint("LEFT", refreshButton, "RIGHT", buttonGap, 0)
     configButton:SetText("Config")
     configButton:SetScript("OnClick", function()
         if MRT.ConfigDebug and MRT.ConfigDebug.Toggle then
@@ -579,7 +582,7 @@ local function CreateUI()
 
     local switchButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     switchButton:SetSize(100, 24)
-    switchButton:SetPoint("LEFT", configButton, "RIGHT", 10, 0)
+    switchButton:SetPoint("LEFT", configButton, "RIGHT", buttonGap, 0)
     switchButton:SetText("Charakter")
     switchButton:SetScript("OnClick", function()
         MultiDebug:Hide()
