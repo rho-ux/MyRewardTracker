@@ -42,6 +42,25 @@ local uiFilters = {
     searchText = "",
 }
 
+local function SetupRowText(fs)
+    if not fs then return end
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+    if fs.SetNonSpaceWrap then fs:SetNonSpaceWrap(false) end
+    if fs.SetIndentedWordWrap then fs:SetIndentedWordWrap(false) end
+    if fs.SetMaxLines then fs:SetMaxLines(1) end
+end
+
+local function SetRowsTextWidth(rows, width)
+    local w = math.max(260, tonumber(width) or 260)
+    for _, row in ipairs(rows or {}) do
+        if row and row.text then
+            row.text:SetWidth(w)
+        end
+    end
+end
+
 local function GetExpansionFilterOptions()
     local options = { "all" }
     if MRT.Config and MRT.Config.Sorting and type(MRT.Config.Sorting.ExpansionOrder) == "table" then
@@ -164,8 +183,7 @@ local function EnsureRow(container, store, index)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
     row.text:SetWidth(1400)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("TOP")
+    SetupRowText(row.text)
     if ShowRowTooltip then
         row:SetScript("OnEnter", ShowRowTooltip)
     end
@@ -331,6 +349,13 @@ local function ApplyLayout(cfg)
         listScroll:SetPoint("BOTTOMRIGHT", -34, 84)
     end
     if listContent then listContent:SetSize(1480, 420) end
+
+    local summaryW = math.max(260, (summaryContent and summaryContent:GetWidth() or leftW) - 20)
+    local highlightW = math.max(260, (highlightContent and highlightContent:GetWidth() or rightW) - 20)
+    local listW = math.max(320, (listContent and listContent:GetWidth() or (leftW + rightW)) - 20)
+    SetRowsTextWidth(summaryRows, summaryW)
+    SetRowsTextWidth(highlightRows, highlightW)
+    SetRowsTextWidth(listRows, listW)
 end
 
 local function Refresh()
@@ -338,7 +363,7 @@ local function Refresh()
     local cfg = GetCfg()
     local lineHeight = tonumber(cfg.lineHeight) or 18
     if lineHeight < 16 then lineHeight = 16 end
-    if lineHeight > 28 then lineHeight = 28 end
+    if lineHeight > 32 then lineHeight = 32 end
 
     local summaryRowsData, listRowsData, highlightRowsData
     if Data.BuildLayoutRows then

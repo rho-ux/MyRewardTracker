@@ -4,7 +4,7 @@ MRT.DashboardSummary = MRT.DashboardSummary or {}
 local Summary = MRT.DashboardSummary
 local Utils = MRT.DashboardUtils or {}
 
-function Summary.BuildAggregateRows(goldActive, goldTotal, animaActive, animaTotal, currencyTotals, cfg)
+function Summary.BuildAggregateRows(goldActive, goldTotal, animaActive, animaTotal, currencyTotals, cfg, entries)
     local rows = {}
     local function add(text, tooltip)
         rows[#rows + 1] = { text = text, tooltip = tooltip }
@@ -56,10 +56,87 @@ function Summary.BuildAggregateRows(goldActive, goldTotal, animaActive, animaTot
 
     if cfg.showMissionHighlight then
         add("")
-        add("|cff00ccffHighlight Bereich (reserviert)|r")
-        add("  - Highlight Eintrag 1")
-        add("  - Highlight Eintrag 2")
-        add("  - Highlight Eintrag 3")
+        add("|cff00ccffHighlight Bereich|r")
+        local charKey = Utils.GetCharacterKey and Utils.GetCharacterKey() or "Character"
+        local agg = {}
+        local order = {}
+
+        for _, e in ipairs(entries or {}) do
+            if e.isHighlight then
+                local kind = tostring(e.highlightKind or "other")
+                local id = tonumber(e.highlightID) or 0
+                local key = kind .. ":" .. tostring(id)
+                local row = agg[key]
+                if not row then
+                    row = {
+                        kind = kind,
+                        id = id,
+                        missions = 0,
+                        lines = {},
+                    }
+                    agg[key] = row
+                    order[#order + 1] = row
+                end
+                row.missions = row.missions + 1
+                row.lines[#row.lines + 1] = (e.missionName or "Unknown") .. " | " .. (e.rewardPreview or "keine Belohnung")
+            end
+        end
+
+        if #order == 0 then
+            add("  - keine Highlight-Treffer")
+            add("  - Hinweis: highlightIDs im Config setzen")
+        else
+            table.sort(order, function(a, b)
+                if a.kind ~= b.kind then
+                    return a.kind < b.kind
+                end
+                return a.id < b.id
+            end)
+
+            local maxRows = 12
+            for i = 1, math.min(#order, maxRows) do
+                local h = order[i]
+                local iconText = ""
+                local tooltipPayload = {
+                    lines = {
+                        charKey .. " - Highlight",
+                        "Treffer: " .. tostring(h.missions),
+                    }
+                }
+
+                if h.kind == "currency" and h.id > 0 and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+                    local ci = C_CurrencyInfo.GetCurrencyInfo(h.id)
+                    if ci and ci.iconFileID then
+                        iconText = "|T" .. tostring(ci.iconFileID) .. ":14:14:0:0|t "
+                    end
+                    tooltipPayload.currencyID = h.id
+                    tooltipPayload.quantity = 1
+                elseif h.kind == "item" and h.id > 0 then
+                    local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(h.id)
+                    if not tex and C_Item and C_Item.GetItemInfoInstant then
+                        local _, _, _, _, _, _, _, _, _, instantTex = C_Item.GetItemInfoInstant(h.id)
+                        tex = instantTex
+                    end
+                    if tex then
+                        iconText = "|T" .. tostring(tex) .. ":14:14:0:0|t "
+                    end
+                    tooltipPayload.itemID = h.id
+                end
+
+                local previewMax = 3
+                for j = 1, math.min(#h.lines, previewMax) do
+                    tooltipPayload.lines[#tooltipPayload.lines + 1] = h.lines[j]
+                end
+                if #h.lines > previewMax then
+                    tooltipPayload.lines[#tooltipPayload.lines + 1] = "... +" .. tostring(#h.lines - previewMax) .. " weitere"
+                end
+
+                add("  - " .. charKey .. " - " .. iconText, tooltipPayload)
+            end
+            if #order > maxRows then
+                add("  - ... +" .. tostring(#order - maxRows) .. " weitere")
+            end
+        end
     end
 
     return rows

@@ -205,6 +205,10 @@ function DebugText.BuildText()
         output[#output + 1] = "  running: " .. (summary.running or 0)
         output[#output + 1] = "  wq: " .. (summary.wq or 0)
         output[#output + 1] = "  filteredTotal: " .. (summary.filteredTotal or 0)
+        output[#output + 1] = "  wqEnabled: " .. tostring(summary.wqEnabled)
+        output[#output + 1] = "  wqGoldMinimum: " .. tostring(summary.wqGoldMinimum or 0)
+        output[#output + 1] = "  wqTrackAnima: " .. tostring(summary.wqTrackAnima)
+        output[#output + 1] = "  notifierHighlightsOnly: " .. tostring(summary.notifierHighlightsOnly)
         output[#output + 1] = ""
     end
 

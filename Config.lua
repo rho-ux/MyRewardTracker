@@ -45,8 +45,8 @@ MRT.Config.Labels.Expansion = MRT.Config.Labels.Expansion or {
 
 MRT.Config.Labels.Reward = MRT.Config.Labels.Reward or {
     anima = "ANIMA",
-    item = "GEGENSTAENDE",
-    currency = "WAEHRUNG",
+    item = "ITEM",
+    currency = "WÄHRUNG",
     gold = "GOLD",
     other = "SONSTIGES",
 }
@@ -291,6 +291,15 @@ function MRT.Config:GetDashboardConfig()
     if type(cfg.showMissionHighlight) ~= "boolean" then
         cfg.showMissionHighlight = true
     end
+    if type(cfg.highlightItemIDs) ~= "table" then
+        cfg.highlightItemIDs = {}
+    end
+    if type(cfg.highlightCurrencyIDs) ~= "table" then
+        cfg.highlightCurrencyIDs = {}
+    end
+    if type(cfg.highlightMissionIDs) ~= "table" then
+        cfg.highlightMissionIDs = {}
+    end
     if type(cfg.fontSize) ~= "number" then
         cfg.fontSize = 13
     end
@@ -390,6 +399,33 @@ function MRT.Config:GetMultiDashboardConfig()
         cfg.highlightCurrencyIDs = {}
     end
 
+    return cfg
+end
+
+function MRT.Config:GetWorldQuestConfig()
+    MyRewardTrackerDB = MyRewardTrackerDB or {}
+    MyRewardTrackerDB.account = MyRewardTrackerDB.account or {}
+    MyRewardTrackerDB.account.worldQuestConfig = MyRewardTrackerDB.account.worldQuestConfig or {}
+
+    local cfg = MyRewardTrackerDB.account.worldQuestConfig
+    if type(cfg.enabled) ~= "boolean" then
+        cfg.enabled = false
+    end
+    if type(cfg.showOnCharacterDashboard) ~= "boolean" then
+        cfg.showOnCharacterDashboard = false
+    end
+    if type(cfg.trackAnima) ~= "boolean" then
+        cfg.trackAnima = true
+    end
+    if type(cfg.goldMinimum) ~= "number" or cfg.goldMinimum < 0 then
+        cfg.goldMinimum = 0
+    end
+    if type(cfg.zoneWhitelist) ~= "table" then
+        cfg.zoneWhitelist = {}
+    end
+    if type(cfg.questBlacklist) ~= "table" then
+        cfg.questBlacklist = {}
+    end
     return cfg
 end
 

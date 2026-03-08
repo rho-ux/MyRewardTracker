@@ -170,13 +170,52 @@ function Utils.ResolveCurrencyData(reward)
     return name, icon
 end
 
-function Utils.BuildRewardPreview(mission, compactMode)
+local function RewardMatchesActiveFilter(reward, missionID)
+    if not reward or not MRT.FilterConfig or not MRT.FilterConfig.GetActive then
+        return false
+    end
+
+    local cfg = MRT.FilterConfig:GetActive()
+    if type(cfg) ~= "table" then
+        return false
+    end
+
+    local qty = tonumber(reward.quantity) or 0
+
+    if reward.itemID and type(cfg.ItemWhitelist) == "table" and cfg.ItemWhitelist[reward.itemID] then
+        return true
+    end
+
+    if reward.itemID and cfg.AnimaBypassFilter and MRT.Config and MRT.Config.IsAnimaItem and MRT.Config:IsAnimaItem(reward.itemID) then
+        return true
+    end
+
+    if reward.currencyID == 0 then
+        local minGold = tonumber(cfg.GoldMinimum) or 0
+        if minGold > 0 and qty >= minGold then
+            return true
+        end
+    elseif reward.currencyID then
+        local minByCurrency = type(cfg.CurrencyMinimum) == "table" and tonumber(cfg.CurrencyMinimum[reward.currencyID]) or nil
+        if minByCurrency and qty >= minByCurrency then
+            return true
+        end
+    end
+
+    if missionID and type(cfg.MissionWhitelist) == "table" and cfg.MissionWhitelist[missionID] then
+        return true
+    end
+
+    return false
+end
+
+function Utils.BuildRewardPreview(mission, compactMode, missionID)
     if not mission or not mission.rewards then
         return nil
     end
 
     local parts = {}
-    for _, reward in ipairs(mission.rewards) do
+    for idx, reward in ipairs(mission.rewards) do
         local qty = reward.quantity or 0
         local iconText = ""
 
@@ -185,15 +224,27 @@ function Utils.BuildRewardPreview(mission, compactMode)
             if itemIcon then
                 iconText = "|T" .. tostring(itemIcon) .. ":14:14:0:0|t "
             end
-            parts[#parts + 1] = iconText .. "x" .. qty
+            parts[#parts + 1] = {
+                text = iconText .. "x" .. qty,
+                isFilterHit = RewardMatchesActiveFilter(reward, missionID),
+                index = idx,
+            }
         elseif reward.currencyID == 0 then
-            parts[#parts + 1] = Utils.FormatMoney(qty)
+            parts[#parts + 1] = {
+                text = Utils.FormatMoney(qty),
+                isFilterHit = RewardMatchesActiveFilter(reward, missionID),
+                index = idx,
+            }
         elseif reward.currencyID then
             local _, currencyIcon = Utils.ResolveCurrencyData(reward)
             if currencyIcon then
                 iconText = "|T" .. tostring(currencyIcon) .. ":14:14:0:0|t "
             end
-            parts[#parts + 1] = iconText .. "x" .. qty
+            parts[#parts + 1] = {
+                text = iconText .. "x" .. qty,
+                isFilterHit = RewardMatchesActiveFilter(reward, missionID),
+                index = idx,
+            }
         end
     end
 
@@ -201,14 +252,26 @@ function Utils.BuildRewardPreview(mission, compactMode)
         return nil
     end
 
+    table.sort(parts, function(a, b)
+        if a.isFilterHit ~= b.isFilterHit then
+            return a.isFilterHit and not b.isFilterHit
+        end
+        return (a.index or 0) < (b.index or 0)
+    end)
+
     if compactMode then
         if #parts > 1 then
-            return parts[1] .. " |cffb0b0b0(+" .. (#parts - 1) .. ")|r"
+            return parts[1].text .. " |cffb0b0b0(+" .. (#parts - 1) .. ")|r"
         end
-        return parts[1]
+        return parts[1].text
     end
 
-    return table.concat(parts, ", ")
+    local flat = {}
+    for i = 1, #parts do
+        flat[#flat + 1] = parts[i].text
+    end
+
+    return table.concat(flat, ", ")
 end
 
 function Utils.BuildRewardPriorityNote(mission, rewardKey)

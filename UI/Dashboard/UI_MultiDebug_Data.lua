@@ -28,6 +28,9 @@ local function BuildStatusText(state, mission, useColors)
         local seconds = tonumber(mission and mission.timeLeftSeconds)
         if seconds and seconds > 0 then
             text = "Rest: " .. FormatDuration(seconds)
+        elseif seconds and seconds <= 0 then
+            text = "fertig"
+            normalized = "ready"
         else
             text = "Rest: ?"
         end
@@ -60,6 +63,93 @@ end
 
 local function IsStateIncludedForMulti(state)
     return state == "running" or state == "ready" or state == "completed"
+end
+
+local function RewardMatchesActiveFilter(reward, missionID)
+    if not reward or not MRT.FilterConfig or not MRT.FilterConfig.GetActive then
+        return false
+    end
+    local cfg = MRT.FilterConfig:GetActive()
+    if type(cfg) ~= "table" then
+        return false
+    end
+
+    local qty = tonumber(reward.quantity) or 0
+    if reward.itemID and type(cfg.ItemWhitelist) == "table" and cfg.ItemWhitelist[reward.itemID] then
+        return true
+    end
+    if reward.itemID and cfg.AnimaBypassFilter and MRT.Config and MRT.Config.IsAnimaItem and MRT.Config:IsAnimaItem(reward.itemID) then
+        return true
+    end
+    if reward.currencyID == 0 then
+        local minGold = tonumber(cfg.GoldMinimum) or 0
+        if minGold > 0 and qty >= minGold then
+            return true
+        end
+    elseif reward.currencyID then
+        local minByCurrency = type(cfg.CurrencyMinimum) == "table" and tonumber(cfg.CurrencyMinimum[reward.currencyID]) or nil
+        if minByCurrency and qty >= minByCurrency then
+            return true
+        end
+    end
+    if missionID and type(cfg.MissionWhitelist) == "table" and cfg.MissionWhitelist[missionID] then
+        return true
+    end
+    return false
+end
+
+local function GetDisplayGroupKey(missionID, mission, groupInfo)
+    if mission and type(mission.rewards) == "table" then
+        for _, reward in ipairs(mission.rewards) do
+            if RewardMatchesActiveFilter(reward, missionID) then
+                if reward.itemID then
+                    local isAnima = MRT.Config and MRT.Config.IsAnimaItem and MRT.Config:IsAnimaItem(reward.itemID)
+                    return isAnima and "anima" or "items"
+                elseif reward.currencyID == 0 then
+                    return "gold"
+                elseif reward.currencyID then
+                    return "currency"
+                end
+            end
+        end
+    end
+    return Utils.GetPrimaryGroupKey(groupInfo)
+end
+
+local function ResolveMissionRuntimeState(mission, trackedLastScan)
+    if not mission then
+        return "available", nil
+    end
+
+    local rawState = mission.state or "available"
+    local state = (rawState == "completed") and "ready" or rawState
+    if state ~= "running" then
+        return state, nil
+    end
+
+    local nowTs = time()
+    local endTs = tonumber(mission.endTime)
+    if not endTs then
+        local baseLeft = tonumber(mission.timeLeftSeconds)
+        local scanTs = tonumber(trackedLastScan)
+        if baseLeft and scanTs and baseLeft >= 0 then
+            endTs = scanTs + baseLeft
+        end
+    end
+
+    if endTs then
+        local remaining = math.floor(endTs - nowTs)
+        if remaining <= 0 then
+            return "ready", 0
+        end
+        return "running", remaining
+    end
+
+    local fallback = tonumber(mission.timeLeftSeconds)
+    if fallback and fallback <= 0 then
+        return "ready", 0
+    end
+    return "running", fallback
 end
 
 function Data.BuildLayoutRows(cfg, uiFilters)
@@ -136,14 +226,15 @@ function Data.BuildLayoutRows(cfg, uiFilters)
 
     for _, charKey in ipairs(keys) do
         local tracked = trackedRoot[charKey]
+        local trackedLastScan = tonumber(tracked and tracked.lastScan) or 0
         local missions = tracked and tracked.missions or {}
         for missionID, mission in pairs(missions) do
-            local state = mission.state or "available"
+            local state, runtimeRemaining = ResolveMissionRuntimeState(mission, trackedLastScan)
             if IsStateIncludedForMulti(state) then
                 global.missionsTotal = global.missionsTotal + 1
 
                 local groupInfo = Utils.BuildGroupData(mission)
-                local primaryGroup = Utils.GetPrimaryGroupKey(groupInfo)
+                local primaryGroup = GetDisplayGroupKey(missionID, mission, groupInfo)
                 if primaryGroup then
                     local includeByGroup = true
                     if primaryGroup == "gold" and not cfg.multiShowGold then includeByGroup = false end
@@ -239,7 +330,7 @@ function Data.BuildLayoutRows(cfg, uiFilters)
                                 rewardKey = normalizedRewardKey,
                                 rewardSort = rewardSort,
                                 state = normalizedState,
-                                timeLeftSeconds = mission.timeLeftSeconds,
+                                timeLeftSeconds = runtimeRemaining,
                                 stateSort = stateSort,
                                 rewardText = rewardText,
                                 tooltip = Utils.BuildGroupTooltip(normalizedRewardKey, groupInfo),
@@ -373,8 +464,19 @@ function Data.BuildLayoutRows(cfg, uiFilters)
         local statusText = BuildStatusText(e.state, { timeLeftSeconds = e.timeLeftSeconds }, showStatusColors)
         local colorOpen, colorClose = GetStateColorCodes(e.state, showStatusColors)
         local missionNameText = colorOpen .. e.missionName .. colorClose
+        local rewardLabel = Utils.GetRewardLabel(e.rewardKey)
+        local parts = { e.charKey }
+        if cfg.showExpansionHeaders then
+            parts[#parts + 1] = e.expansionLabel
+        end
+        if cfg.showRewardHeaders then
+            parts[#parts + 1] = rewardLabel
+        end
+        parts[#parts + 1] = missionNameText
+        parts[#parts + 1] = statusText
+        parts[#parts + 1] = e.rewardText
         listRows[#listRows + 1] = {
-            text = string.format("%s - %s - %s - %s - %s", e.charKey, e.expansionLabel, missionNameText, statusText, e.rewardText),
+            text = table.concat(parts, " - "),
             tooltip = e.tooltip,
         }
     end

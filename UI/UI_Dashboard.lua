@@ -47,6 +47,25 @@ local ShowRowTooltip = Utils.ShowRowTooltip
 local HideRowTooltip = Utils.HideRowTooltip
 local BuildAggregateRows = SummaryBuilder.BuildAggregateRows
 
+local function SetupRowText(fs)
+    if not fs then return end
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+    if fs.SetNonSpaceWrap then fs:SetNonSpaceWrap(false) end
+    if fs.SetIndentedWordWrap then fs:SetIndentedWordWrap(false) end
+    if fs.SetMaxLines then fs:SetMaxLines(1) end
+end
+
+local function SetRowsTextWidth(rows, width)
+    local w = math.max(220, tonumber(width) or 220)
+    for _, row in ipairs(rows or {}) do
+        if row and row.text then
+            row.text:SetWidth(w)
+        end
+    end
+end
+
 local function HideScrollBar(scrollFrame)
     if not scrollFrame then return end
     local sb = scrollFrame.ScrollBar
@@ -104,8 +123,7 @@ local function EnsureListRow(index)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
     row.text:SetWidth(960)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("TOP")
+    SetupRowText(row.text)
 
     row:SetScript("OnEnter", ShowRowTooltip)
     row:SetScript("OnLeave", HideRowTooltip)
@@ -117,6 +135,8 @@ end
 local function RenderMissionRows(rows)
     local cfg = GetDashboardConfig()
     local lineHeight = tonumber(cfg.lineHeight) or 18
+    if lineHeight < 16 then lineHeight = 16 end
+    if lineHeight > 32 then lineHeight = 32 end
     for i, rowData in ipairs(rows) do
         local row = EnsureListRow(i)
         row:SetHeight(lineHeight)
@@ -151,8 +171,7 @@ local function EnsureMissionSummaryRow(index)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
     row.text:SetWidth(960)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("TOP")
+    SetupRowText(row.text)
 
     row:SetScript("OnEnter", ShowRowTooltip)
     row:SetScript("OnLeave", HideRowTooltip)
@@ -164,6 +183,8 @@ end
 local function RenderMissionSummaryRows(rows)
     local cfg = GetDashboardConfig()
     local lineHeight = tonumber(cfg.lineHeight) or 18
+    if lineHeight < 16 then lineHeight = 16 end
+    if lineHeight > 32 then lineHeight = 32 end
     for i, rowData in ipairs(rows) do
         local row = EnsureMissionSummaryRow(i)
         row:SetHeight(lineHeight)
@@ -198,8 +219,7 @@ local function EnsureWQSummaryRow(index)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
     row.text:SetWidth(960)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("TOP")
+    SetupRowText(row.text)
 
     wqSummaryRows[index] = row
     return row
@@ -208,6 +228,8 @@ end
 local function RenderWQSummaryRows(rows)
     local cfg = GetDashboardConfig()
     local lineHeight = tonumber(cfg.lineHeight) or 18
+    if lineHeight < 16 then lineHeight = 16 end
+    if lineHeight > 32 then lineHeight = 32 end
     for i, rowData in ipairs(rows) do
         local row = EnsureWQSummaryRow(i)
         row:SetHeight(lineHeight)
@@ -242,8 +264,7 @@ local function EnsureWQListRow(index)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("TOPLEFT", 0, 0)
     row.text:SetWidth(960)
-    row.text:SetJustifyH("LEFT")
-    row.text:SetJustifyV("TOP")
+    SetupRowText(row.text)
 
     wqListRows[index] = row
     return row
@@ -252,6 +273,8 @@ end
 local function RenderWQListRows(rows)
     local cfg = GetDashboardConfig()
     local lineHeight = tonumber(cfg.lineHeight) or 18
+    if lineHeight < 16 then lineHeight = 16 end
+    if lineHeight > 32 then lineHeight = 32 end
     for i, rowData in ipairs(rows) do
         local row = EnsureWQListRow(i)
         row:SetHeight(lineHeight)
@@ -372,6 +395,13 @@ local function ApplyDashboardLayout(cfg)
     if listContent then listContent:SetSize(math.max(520, leftW - 40), bottomH) end
     if wqListContent then wqListContent:SetSize(math.max(520, rightW - 40), bottomH) end
 
+    local leftTextW = math.max(220, (listContent and listContent:GetWidth() or leftW) - 20)
+    local rightTextW = math.max(220, (wqListContent and wqListContent:GetWidth() or rightW) - 20)
+    SetRowsTextWidth(listRows, leftTextW)
+    SetRowsTextWidth(missionSummaryRows, leftTextW)
+    SetRowsTextWidth(wqSummaryRows, rightTextW)
+    SetRowsTextWidth(wqListRows, rightTextW)
+
     if hLine then
         hLine:ClearAllPoints()
         hLine:SetPoint("LEFT", 12, 0)
@@ -397,6 +427,7 @@ local function RefreshDashboard()
     summary = summary or { available = 0, ready = 0, running = 0, wq = 0 }
 
     local dashboardCfg = GetDashboardConfig()
+    local wqCfg = MRT.Config and MRT.Config.GetWorldQuestConfig and MRT.Config:GetWorldQuestConfig() or {}
     local showSortDebug = dashboardCfg.showSortDebug
     local showExpansionHeaders = dashboardCfg.showExpansionHeaders
     local showRewardHeaders = dashboardCfg.showRewardHeaders
@@ -409,6 +440,27 @@ local function RefreshDashboard()
     local showGroupItems = dashboardCfg.showGroupItems
     local showGroupAnima = dashboardCfg.showGroupAnima
     local fontSize = dashboardCfg.fontSize or 13
+
+    local multiCfg = MRT.Config and MRT.Config.GetMultiDashboardConfig and MRT.Config:GetMultiDashboardConfig() or {}
+    local highlightItemIDs = {}
+    local highlightCurrencyIDs = {}
+    local highlightMissionIDs = {}
+    local function mergeBoolMap(dst, src)
+        if type(src) ~= "table" then
+            return
+        end
+        for k, v in pairs(src) do
+            local id = tonumber(k)
+            if id and id > 0 and v ~= false then
+                dst[id] = true
+            end
+        end
+    end
+    mergeBoolMap(highlightItemIDs, multiCfg.highlightItemIDs)
+    mergeBoolMap(highlightCurrencyIDs, multiCfg.highlightCurrencyIDs)
+    mergeBoolMap(highlightItemIDs, dashboardCfg.highlightItemIDs)
+    mergeBoolMap(highlightCurrencyIDs, dashboardCfg.highlightCurrencyIDs)
+    mergeBoolMap(highlightMissionIDs, dashboardCfg.highlightMissionIDs)
 
     ApplyDashboardLayout(dashboardCfg)
     ApplyDashboardFontSize(fontSize)
@@ -430,6 +482,12 @@ local function RefreshDashboard()
                 local state = MRT.Config and MRT.Config.GetMissionState and MRT.Config:GetMissionState(mission) or "available"
                 local expansionKey = GetMissionExpansionKey(mission)
                 local rewardKey = GetMissionPrimaryGroupKey(mission)
+                local highlightKind = nil
+                local highlightID = nil
+                if highlightMissionIDs[missionID] then
+                    highlightKind = "mission"
+                    highlightID = missionID
+                end
                 local visibleByGroup = MissionAllowedByGroupToggles(rewardKey, dashboardCfg)
                 if not visibleByGroup then
                     -- Gruppe ausgeblendet (Gold/Waehrung/Items/Anima).
@@ -448,6 +506,10 @@ local function RefreshDashboard()
                                     totalGoldActive = totalGoldActive + qty
                                 end
                             elseif reward.itemID then
+                                if not highlightKind and highlightItemIDs[reward.itemID] then
+                                    highlightKind = "item"
+                                    highlightID = reward.itemID
+                                end
                                 local itemLink, itemName, itemIcon = ResolveItemData(reward)
                                 local key = reward.itemID
                                 local label = itemLink or itemName or ("Item:" .. reward.itemID)
@@ -470,6 +532,10 @@ local function RefreshDashboard()
                                     end
                                 end
                             elseif reward.currencyID then
+                                if not highlightKind and highlightCurrencyIDs[reward.currencyID] then
+                                    highlightKind = "currency"
+                                    highlightID = reward.currencyID
+                                end
                                 local currencyName, currencyIcon = ResolveCurrencyData(reward)
                                 local key = reward.currencyID
                                 local label = currencyName or ("Currency:" .. reward.currencyID)
@@ -493,9 +559,12 @@ local function RefreshDashboard()
                         rewardKey = rewardKey,
                         expansionSort = expansionSort,
                         rewardSort = rewardSort,
-                        rewardPreview = BuildRewardPreview(mission, compactList),
+                        rewardPreview = BuildRewardPreview(mission, compactList, missionID),
                         rewardPriorityNote = BuildRewardPriorityNote(mission, rewardKey),
                         tooltip = BuildRewardTooltipData(mission),
+                        isHighlight = (highlightKind ~= nil),
+                        highlightKind = highlightKind,
+                        highlightID = highlightID,
                     }
 
                     if debugForceRemaining and not entries[#entries].remainingText then
@@ -540,11 +609,25 @@ local function RefreshDashboard()
             end
         end
 
+        local rewardLabel = GetRewardLabel(entry.rewardKey)
         local rewardText = entry.rewardPreview or "keine Belohnung"
+        if not showRewardDetails then
+            rewardText = rewardLabel
+        end
         local missionNameText = statusColorOpen .. entry.missionName .. statusColorClose
         local statusDisplay = statusColorOpen .. statusText .. statusColorClose
         local expansionLabel = GetExpansionLabel(entry.expansionKey)
-        local line = charKey .. " - " .. expansionLabel .. " - " .. missionNameText .. " - " .. statusDisplay .. " - " .. rewardText
+        local parts = { charKey }
+        if showExpansionHeaders then
+            parts[#parts + 1] = expansionLabel
+        end
+        if showRewardHeaders then
+            parts[#parts + 1] = rewardLabel
+        end
+        parts[#parts + 1] = missionNameText
+        parts[#parts + 1] = statusDisplay
+        parts[#parts + 1] = rewardText
+        local line = table.concat(parts, " - ")
 
         rows[#rows + 1] = {
             text = line,
@@ -554,45 +637,89 @@ local function RefreshDashboard()
 
     listTitle:SetText("Missionen")
     RenderMissionRows(rows)
-    local summaryRowsData = BuildAggregateRows(totalGoldActive, totalGold, totalAnimaActive, totalAnima, currencyTotals, dashboardCfg)
+    local summaryRowsData = BuildAggregateRows(totalGoldActive, totalGold, totalAnimaActive, totalAnima, currencyTotals, dashboardCfg, entries)
     RenderMissionSummaryRows(summaryRowsData)
 
-    local wqSummaryRowsData = {
-        { text = "|cffffcc00WQ-Zusammenfassung:|r" },
-        { text = "  - verfuegbar: " .. tostring(summary.wq or 0) },
-        { text = "  - Gesamt Gold WQ: 0g 0s 0c" },
-        { text = "  - Gesamt Anima WQ: 0" },
-        { text = "|cffb0b0b0(Platzhalter bis WQ-Modul aktiv ist)|r" },
-        { text = "" },
-        { text = "|cff00ccffHighlight-Bereich (reserviert)|r" },
-        { text = "  - Highlight Eintrag 1" },
-        { text = "  - Highlight Eintrag 2" },
-        { text = "  - Highlight Eintrag 3" },
-    }
-    RenderWQSummaryRows(wqSummaryRowsData)
+    local wqEnabled = wqCfg.enabled and true or false
+    local wqShowOnChar = wqCfg.showOnCharacterDashboard and true or false
+    local wqTrackAnima = (wqCfg.trackAnima ~= false)
+    local wqGoldMin = tonumber(wqCfg.goldMinimum) or 0
+    if wqGoldMin < 0 then wqGoldMin = 0 end
+    local wqZoneCount = 0
+    if type(wqCfg.zoneWhitelist) == "table" then
+        for _ in pairs(wqCfg.zoneWhitelist) do wqZoneCount = wqZoneCount + 1 end
+    end
+    local wqBlacklistCount = 0
+    if type(wqCfg.questBlacklist) == "table" then
+        for _ in pairs(wqCfg.questBlacklist) do wqBlacklistCount = wqBlacklistCount + 1 end
+    end
 
-    local wqListRowsData = {
-        { text = "|cffffcc00-- GOLD WQ --|r" },
-        { text = "  - Zone (mapID) 1" },
-        { text = "  - Zone (mapID) 2" },
-        { text = "  ..." },
-        { text = "" },
-        { text = "|cffffcc00-- GEGENSTAENDE WQ --|r" },
-        { text = "  - Zone (mapID) 1" },
-        { text = "  - Zone (mapID) 2" },
-        { text = "  ..." },
-        { text = "" },
-        { text = "|cffffcc00-- ANIMA WQ --|r" },
-        { text = "  - Zone (mapID) 1" },
-        { text = "  - Zone (mapID) 2" },
-        { text = "  ..." },
-        { text = "" },
-        { text = "|cffffcc00-- WAEHRUNG WQ --|r" },
-        { text = "  - Zone (mapID) 1" },
-        { text = "  - Zone (mapID) 2" },
-        { text = "  ..." },
-    }
-    RenderWQListRows(wqListRowsData)
+    if not wqShowOnChar then
+        local wqSummaryRowsData = {
+            { text = "|cffffcc00WQ-Zusammenfassung:|r" },
+            { text = "  - Anzeige im Char-Dashboard: |cffff5555AUS|r" },
+            { text = "  - WQ Modul aktiv: " .. (wqEnabled and "|cff00ff00AN|r" or "|cffff5555AUS|r") },
+            { text = "|cffb0b0b0(Option in Config aktivieren: WQ im Char-Dashboard)|r" },
+        }
+        RenderWQSummaryRows(wqSummaryRowsData)
+        RenderWQListRows({
+            { text = "|cff808080WQ-Bereich ausgeblendet (Config)|r" },
+        })
+    else
+        local wqSummaryRowsData = {
+            { text = "|cffffcc00WQ-Zusammenfassung:|r" },
+            { text = "  - verfuegbar: " .. tostring(summary.wq or 0) },
+            { text = "  - WQ Modul aktiv: " .. (wqEnabled and "|cff00ff00AN|r" or "|cffff5555AUS|r") },
+            { text = "  - Im Char-Dashboard: |cff00ff00AN|r" },
+            { text = "  - WQ GoldMinimum: " .. tostring(math.floor(wqGoldMin)) },
+            { text = "  - WQ Anima Tracking: " .. (wqTrackAnima and "|cff00ff00AN|r" or "|cffff5555AUS|r") },
+            { text = "  - WQ ZoneWhitelist: " .. tostring(wqZoneCount) .. " IDs" },
+            { text = "  - WQ QuestBlacklist: " .. tostring(wqBlacklistCount) .. " IDs" },
+            { text = "|cffb0b0b0(Datenfluss aus Config aktiv; Scanner folgt spaeter)|r" },
+        }
+        RenderWQSummaryRows(wqSummaryRowsData)
+
+        local wqListRowsData = {
+            { text = "|cffffcc00-- WQ LISTE (platzhalter) --|r" },
+            { text = "  - Scanner-Status: " .. (wqEnabled and "vorbereitet (noch kein aktiver Scan)" or "deaktiviert in Config") },
+            { text = "  - Char-Dashboard Anzeige: aktiviert" },
+            { text = "  - Goldfilter: ab " .. tostring(math.floor(wqGoldMin)) },
+            { text = "  - Anima-Tracking: " .. (wqTrackAnima and "AN" or "AUS") },
+            { text = "" },
+            { text = "|cffffcc00-- WQ ZONEN (Whitelist) --|r" },
+        }
+        if wqZoneCount == 0 then
+            wqListRowsData[#wqListRowsData + 1] = { text = "  - keine IDs gesetzt" }
+        else
+            local shownZones = 0
+            for mapID, enabled in pairs(wqCfg.zoneWhitelist or {}) do
+                if enabled and shownZones < 12 then
+                    wqListRowsData[#wqListRowsData + 1] = { text = "  - mapID " .. tostring(mapID) }
+                    shownZones = shownZones + 1
+                end
+            end
+            if wqZoneCount > shownZones then
+                wqListRowsData[#wqListRowsData + 1] = { text = "  - ... +" .. tostring(wqZoneCount - shownZones) .. " weitere" }
+            end
+        end
+        wqListRowsData[#wqListRowsData + 1] = { text = "" }
+        wqListRowsData[#wqListRowsData + 1] = { text = "|cffffcc00-- WQ QUEST BLACKLIST --|r" }
+        if wqBlacklistCount == 0 then
+            wqListRowsData[#wqListRowsData + 1] = { text = "  - keine IDs gesetzt" }
+        else
+            local shownQ = 0
+            for questID, enabled in pairs(wqCfg.questBlacklist or {}) do
+                if enabled and shownQ < 12 then
+                    wqListRowsData[#wqListRowsData + 1] = { text = "  - questID " .. tostring(questID) }
+                    shownQ = shownQ + 1
+                end
+            end
+            if wqBlacklistCount > shownQ then
+                wqListRowsData[#wqListRowsData + 1] = { text = "  - ... +" .. tostring(wqBlacklistCount - shownQ) .. " weitere" }
+            end
+        end
+        RenderWQListRows(wqListRowsData)
+    end
     ApplyDashboardFontSize(fontSize)
 end
 

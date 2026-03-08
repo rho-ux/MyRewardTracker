@@ -135,9 +135,28 @@ SlashCmdList["MRTNOTIFYAUTOHIDE"] = function(msg)
     print("|cff00ff00[MRT]|r Notify AutoHide: " .. seconds .. "s")
 end
 
+SLASH_MRTNOTIFYHIGHLIGHTS1 = "/mrtnotifyhighlights"
+SlashCmdList["MRTNOTIFYHIGHLIGHTS"] = function(msg)
+    local cfg = MRT.NotifierConfig and MRT.NotifierConfig.Get and MRT.NotifierConfig.Get()
+    if not cfg then
+        return
+    end
+
+    local arg = string.lower((msg or ""):match("^%s*(.-)%s*$"))
+    if arg == "on" then
+        cfg.highlightsOnly = true
+    elseif arg == "off" then
+        cfg.highlightsOnly = false
+    else
+        cfg.highlightsOnly = not cfg.highlightsOnly
+    end
+    print("|cff00ff00[MRT]|r Notify nur Highlights: " .. (cfg.highlightsOnly and "AN" or "AUS"))
+end
+
 if MRT.RegisterHelpCommand then
     MRT.RegisterHelpCommand("/mrtnotify", "zeigt Notifier-Popup sofort")
     MRT.RegisterHelpCommand("/mrtnotifypopup on|off|toggle", "Popup ein/aus")
     MRT.RegisterHelpCommand("/mrtnotifysound none|kit <ID>|file <Pfad>", "Sound-Modus setzen")
     MRT.RegisterHelpCommand("/mrtnotifyautohide <Sekunden>", "AutoHide-Dauer setzen")
+    MRT.RegisterHelpCommand("/mrtnotifyhighlights on|off|toggle", "Notifier nur bei Highlight-Treffern")
 end

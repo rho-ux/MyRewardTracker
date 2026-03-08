@@ -7,6 +7,7 @@ local popup
 local lineAvailable
 local lineReady
 local lineWQ
+local lineMode
 local lastSummary
 local popupToken = 0
 
@@ -51,6 +52,10 @@ local function EnsurePopup()
     lineWQ:SetPoint("TOPLEFT", 16, -86)
     lineWQ:SetJustifyH("LEFT")
 
+    lineMode = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    lineMode:SetPoint("TOPLEFT", 16, -104)
+    lineMode:SetJustifyH("LEFT")
+
     local openButton = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
     openButton:SetSize(180, 24)
     openButton:SetPoint("BOTTOM", 0, 14)
@@ -90,7 +95,19 @@ function NotifierPopup.ShowSummaryPopup(availableCount, readyCount, wqCount)
 
     lineAvailable:SetText(availableCount .. " Mission verfuegbar")
     lineReady:SetText(readyCount .. " Mission fertig")
-    lineWQ:SetText(wqCount .. " WQ verfuegbar")
+    lineMode:SetText("Modus: " .. (cfg.highlightsOnly and "|cff00ff00Nur Highlights|r" or "|cffffff00Alle Filtertreffer|r"))
+    local wqEnabled = false
+    if MRT.Config and MRT.Config.GetWorldQuestConfig then
+        local wqCfg = MRT.Config:GetWorldQuestConfig()
+        wqEnabled = wqCfg and wqCfg.enabled and true or false
+    end
+    if wqEnabled then
+        lineWQ:SetText(wqCount .. " WQ verfuegbar")
+        lineWQ:Show()
+    else
+        lineWQ:SetText("")
+        lineWQ:Hide()
+    end
 
     popup:Show()
     lastSummary = summary

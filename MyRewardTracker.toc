@@ -31,6 +31,9 @@ UI\Dashboard\UI_MultiDebug_Utils.lua
 UI\Dashboard\UI_MultiDebug_Data.lua
 UI\UI_Dashboard.lua
 UI\UI_MultiDebug.lua
+UI\Config\UI_ConfigDebug_State.lua
+UI\Config\UI_ConfigDebug_Info.lua
+UI\Config\UI_ConfigDebug_Controls.lua
 UI\UI_ConfigDebug.lua
 UI\UI_Debug.lua
 

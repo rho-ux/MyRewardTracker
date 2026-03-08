@@ -29,6 +29,16 @@ function Utils.GetExpansionLabel(expansionKey)
     return string.upper(expansionKey or "unknown")
 end
 
+function Utils.GetRewardLabel(rewardKey)
+    if MRT.Config and MRT.Config.Labels and MRT.Config.Labels.Reward then
+        local label = MRT.Config.Labels.Reward[rewardKey]
+        if label and label ~= "" then
+            return label
+        end
+    end
+    return string.upper(rewardKey or "other")
+end
+
 function Utils.GetStateLabel(state)
     if state == "ready" then
         return "fertig"
